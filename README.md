@@ -15,7 +15,43 @@ symlinks; managed skills and runtime state stay local.
 contains a secret-free portable reference; machine-local project trust and UI
 state remain in the live config.
 
+## Quick setup on another machine
+
+Clone the private repository under the target Codex home and run the root
+setup entrypoint:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}"
+git clone https://github.com/steamdollar/codex-config.git \
+  "${CODEX_HOME:-$HOME/.codex}/codex-config"
+cd "${CODEX_HOME:-$HOME/.codex}/codex-config"
+./setup.sh
+```
+
+`setup.sh` applies the versioned `manifest.tsv`: it creates symlinks for the
+four root Markdown guidance files and also installs the custom agent, rule, and
+skill links without replacing `.system` or runtime state. Existing identical
+content is backed up before replacement; drift or foreign symlinks stop setup.
+
+For Clero machines, pass the local checkout through the environment:
+
+```bash
+CLERO_TOKKO_ROOT=/path/to/clero/tokko ./setup.sh
+```
+
+To preview an existing machine without changing it:
+
+```bash
+./setup.sh --dry-run
+```
+
+A missing or different live `config.toml` is reported but is never rewritten
+by setup. Use `templates/config.portable.toml` as the manual merge reference.
+
 ## Install
+
+The lower-level installer remains available for explicit backup paths,
+verification, and rollback.
 
 Preview first:
 

@@ -210,6 +210,7 @@ PY
 }
 
 verify_install() {
+  local require_config_match=${1:-true}
   local i source target failures=0
   for i in "${!targets[@]}"; do
     source=${sources[$i]}
@@ -221,7 +222,13 @@ verify_install() {
       failures=$((failures + 1))
     fi
   done
-  check_config || failures=$((failures + 1))
+  if ! check_config; then
+    if [[ "$require_config_match" == true ]]; then
+      failures=$((failures + 1))
+    else
+      printf '%s\n' 'WARN: live config differs from the portable template; symlinks are installed and config was not changed' >&2
+    fi
+  fi
   ((failures == 0)) || fail "$failures verification checks failed"
 }
 
@@ -251,6 +258,21 @@ rollback_install() {
 
 install_apply() {
   local timestamp i source rel target original tmp had_original clero_link
+  local changes_required=false
+  for i in "${!targets[@]}"; do
+    if ! same_link "$codex_home/${targets[$i]}" "${sources[$i]}"; then
+      changes_required=true
+      break
+    fi
+  done
+  if [[ -n "$clero_root" ]] && ! same_link "$codex_home/local/roots/clero-tokko" "$clero_root"; then
+    changes_required=true
+  fi
+  if [[ "$changes_required" == false ]]; then
+    printf '%s\n' 'NOOP: all managed links already point to this repository'
+    return
+  fi
+
   timestamp=$(date -u +%Y%m%dT%H%M%SZ)
   if [[ -z "$backup_dir" ]]; then
     backup_dir="$codex_home/backups/portable-codex-config/$timestamp"
@@ -366,7 +388,7 @@ case "$command_name" in
     preflight_install
     if [[ "$execution_mode" == apply ]]; then
       install_apply
-      verify_install
+      verify_install false
     else
       printf '%s\n' 'DRY-RUN: no changes made'
     fi
@@ -374,7 +396,7 @@ case "$command_name" in
   verify)
     [[ "$mode_explicit" == false ]] || fail "verify does not accept --dry-run or --apply"
     [[ -z "$clero_root" && -z "$backup_dir" && -z "$restore_backup" ]] || fail "verify accepts only --codex-home"
-    verify_install
+    verify_install true
     ;;
   uninstall)
     [[ -z "$clero_root" && -z "$backup_dir" ]] || fail "uninstall does not accept --clero-root or --backup-dir"
