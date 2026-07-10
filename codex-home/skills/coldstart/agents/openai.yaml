@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cold Start Handoff"
+  short_description: "Draft compact handoff prompts for new tabs"
+  default_prompt: "Use $coldstart to draft a compact handoff prompt for this task."

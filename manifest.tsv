@@ -1,0 +1,14 @@
+# type	repo_source	live_target	migration_policy
+file	codex-home/AGENTS.md	AGENTS.md	exact
+file	codex-home/SUB_AGENTS.md	SUB_AGENTS.md	exact
+file	codex-home/REVIEW.md	REVIEW.md	exact
+file	codex-home/DOMAIN_RULES.md	DOMAIN_RULES.md	exact
+file	codex-home/agents/luna-reader.toml	agents/luna-reader.toml	exact
+file	codex-home/agents/terra-executor.toml	agents/terra-executor.toml	exact
+file	codex-home/rules/default.rules	rules/default.rules	exact
+dir	codex-home/skills/clero-local-dev-triage	skills/clero-local-dev-triage	path-parameterized
+dir	codex-home/skills/clero-stepwise-change	skills/clero-stepwise-change	path-parameterized
+dir	codex-home/skills/coldstart	skills/coldstart	exact
+dir	codex-home/skills/gh-pr-comment-report	skills/gh-pr-comment-report	exact
+dir	codex-home/skills/query-review	skills/query-review	exact
+dir	codex-home/skills/user-review-helper	skills/user-review-helper	exact

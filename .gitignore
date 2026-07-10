@@ -1,0 +1,37 @@
+# Credentials and local environment
+.env
+.env.*
+!.env.example
+auth.json
+credentials*
+secrets*
+*.pem
+*.key
+
+# Codex runtime and machine state
+backups/
+local/
+sessions/
+archived_sessions/
+memories/
+log/
+logs/
+cache/
+tmp/
+.tmp/
+shell_snapshots/
+process_manager/
+mcp-oauth-locks/
+plugins/cache/
+skills/.system/
+*.jsonl
+*.sqlite
+*.sqlite-*
+models_cache.json
+installation_id
+version.json
+
+# Editor and OS state
+.DS_Store
+.idea/
+.vscode/

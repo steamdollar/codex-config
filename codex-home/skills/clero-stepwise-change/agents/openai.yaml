@@ -1,0 +1,6 @@
+interface:
+  display_name: "Clero Stepwise Change"
+  short_description: "Plan and implement Clero changes by layer"
+  default_prompt: "Use $clero-stepwise-change to inspect this Clero source path, prepare a source-aware plan, and implement the change after approval using existing layer patterns."
+policy:
+  allow_implicit_invocation: true
