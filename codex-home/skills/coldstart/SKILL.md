@@ -15,17 +15,11 @@ Produce a prompt the user can paste into a brand-new Codex/coding-agent session 
 
 **Point to sections.** For long docs, cite the exact heading and tell the next agent to grep/jump there instead of reading the whole file.
 
-**Preserve gates.** Encode the user's preferred sequence explicitly: Discovery report -> plan or step proposal -> user approval -> code. If a plan file already exists, tell the next agent to update or follow it instead of inventing a new one.
+**Preserve applicable gates.** Carry forward gates from the user's request, repository instructions, and existing plan. Do not introduce plan or approval requirements for work that does not require them. If a plan already exists, follow or update it instead of inventing a new one.
 
 **One-line goal.** State success in one sentence. Keep background out of the prompt.
 
 **Carry known decisions and gotchas.** Include only specific facts surfaced in the current work, with a file/section reference where possible. If a fact is not verified, mark it as `[UNKNOWN: ...]`.
-
-## Use
-
-Use this skill when the user asks for a prompt to continue a specific task in a new tab, fresh context window, or different coding agent session.
-
-Do not use it for PR descriptions, ordinary summaries, or explaining how to continue inside the current session.
 
 ## Procedure
 
@@ -46,6 +40,9 @@ Do not use it for PR descriptions, ordinary summaries, or explaining how to cont
 4. Compose the prompt in the user's language.
    - Korean user -> Korean prompt.
    - Wrap the whole prompt in one fenced `markdown` block.
+   - Keep the goal to one sentence and required-read references to 4 or fewer verified absolute paths.
+   - Mark unverified state with `[UNKNOWN: ...]`.
+   - After the block, add only one short sentence telling the user to paste it into the new tab.
 
 ## Template
 
@@ -66,8 +63,8 @@ Do not use it for PR descriptions, ordinary summaries, or explaining how to cont
 
 진행 순서:
 1. Discovery - 실제 code path와 contract를 확인하고, 확인한 파일/데이터 흐름/불확실한 점을 먼저 보고한다.
-2. 계획 - 기존 plan이 있으면 그 문서를 업데이트/참조하고, 새 plan이 필요하면 `PLAN-<short-task>.md`를 작성한 뒤 승인받는다.
-3. 구현 - 승인된 atomic step만 진행한다. repo layer 순서와 기존 convention을 우선한다.
+2. 계획/승인 - 기존 plan과 repo 지침을 따른다. plan 또는 승인이 필요한 변경이면 코드 전에 처리한다.
+3. 구현 - 필요한 승인을 받은 atomic step만 진행한다. repo layer 순서와 기존 convention을 우선한다.
 4. 검증 - 변경 범위에 맞는 focused test/typecheck만 실행하고 결과를 보고한다.
 
 이미 결정된 것 / 주의할 점:
@@ -76,15 +73,3 @@ Do not use it for PR descriptions, ordinary summaries, or explaining how to cont
 
 추측하지 말고, 위 문서와 현재 코드/git evidence로 다시 확인해서 진행한다.
 ```
-
-## Quality Checks
-
-- The result is one copy-pasteable fenced `markdown` block.
-- The goal is one sentence.
-- Required-read references are absolute paths and exist.
-- Required-read references are 4 or fewer.
-- The prompt does not re-explain background already in the referenced docs.
-- Discovery, planning/approval, implementation, and focused verification gates are explicit.
-- Unknown or unverified state is marked with `[UNKNOWN: ...]`.
-
-After the code block, add one short sentence telling the user to paste it into the new tab. No extra commentary.
