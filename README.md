@@ -7,6 +7,7 @@ symlinks; managed skills and runtime state stay local.
 ## Managed scope
 
 - Root guidance: `AGENTS.md`, `SUB_AGENTS.md`, `REVIEW.md`, `DOMAIN_RULES.md`
+- Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
 - Custom agents: `luna-reader.toml`, `terra-executor.toml`
 - Custom rule: `default.rules`
 - Six user-authored skills listed in `manifest.tsv`
@@ -29,9 +30,10 @@ cd "${CODEX_HOME:-$HOME/.codex}/codex-config"
 ```
 
 `setup.sh` applies the versioned `manifest.tsv`: it creates symlinks for the
-four root Markdown guidance files and also installs the custom agent, rule, and
-skill links without replacing `.system` or runtime state. Existing identical
-content is backed up before replacement; drift or foreign symlinks stop setup.
+four root Markdown guidance files and also installs the lifecycle hook, custom
+agent, rule, and skill links without replacing `.system` or runtime state.
+Existing identical content is backed up before replacement; drift or foreign
+symlinks stop setup.
 
 For Clero machines, pass the local checkout through the environment:
 
@@ -80,7 +82,37 @@ The install prints its timestamped backup path. Keep that path for rollback.
   --codex-home "${CODEX_HOME:-$HOME/.codex}"
 ```
 
-Restart Codex after installing or changing skills so discovery is refreshed.
+Restart Codex after installing or changing hooks or skills so discovery is refreshed.
+
+## Context-budget warning
+
+The `Stop` hook reads the newest recorded `last_token_usage.input_tokens` from
+the session transcript. It warns once at 45% and once at 60% of the model
+context window without blocking the turn.
+
+Override both thresholds for a launched Codex session when absolute limits are
+preferred:
+
+```bash
+CODEX_CONTEXT_BUDGET_SOFT_TOKENS=150000 \
+CODEX_CONTEXT_BUDGET_HARD_TOKENS=200000 \
+codex
+```
+
+One-shot markers are disposable runtime files outside the managed manifest.
+
+## Tests
+
+Run the isolated installer integration tests against temporary Codex homes:
+
+```bash
+python3 tests/context-budget-hook-test.py
+bash tests/codex-config-test.sh
+```
+
+The tests cover threshold and one-shot behavior, dry-run/apply/verify/uninstall,
+incremental and legacy backup restoration, path-parameterized drift rejection,
+and rollback after an injected link failure.
 
 ## Uninstall or rollback
 
@@ -93,8 +125,10 @@ Preview restoration from an install backup:
   --dry-run
 ```
 
-Replace `--dry-run` with `--apply` after reviewing the target list. Without
-`--restore-backup`, uninstall removes only symlinks that point to this clone.
+Replace `--dry-run` with `--apply` after reviewing the target list. New backups
+restore only entries changed by that install; legacy backups retain full-manifest
+restore behavior. Without `--restore-backup`, uninstall removes only symlinks
+that point to this clone.
 
 ## Safety boundary
 

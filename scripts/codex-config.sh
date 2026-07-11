@@ -105,7 +105,7 @@ load_manifest() {
     targets+=("$target")
     policies+=("$policy")
   done < "$manifest"
-  ((${#targets[@]} == 13)) || fail "expected 13 manifest entries, found ${#targets[@]}"
+  ((${#targets[@]} == 15)) || fail "expected 15 manifest entries, found ${#targets[@]}"
 }
 
 same_link() {
@@ -122,8 +122,70 @@ compare_exact() {
   fi
 }
 
+compare_path_parameterized() {
+  local source=$1 target=$2
+  python3 - "$source" "$target" "$codex_home" "$clero_root" <<'PY'
+import sys
+from pathlib import Path
+
+source_root, target_root = map(Path, sys.argv[1:3])
+codex_home, clero_root = sys.argv[3:5]
+
+
+def entries(root):
+    result = {}
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise SystemExit(1)
+        relative = path.relative_to(root).as_posix()
+        if path.is_file():
+            result[relative] = ("file", path)
+        elif path.is_dir():
+            result[relative] = ("dir", path)
+        else:
+            raise SystemExit(1)
+    return result
+
+
+def normalized(path):
+    data = path.read_bytes()
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data
+
+    replacements = [
+        ("${CODEX_HOME:-$HOME/.codex}", "<CODEX_HOME>"),
+        ("$CODEX_HOME", "<CODEX_HOME>"),
+        (codex_home, "<CODEX_HOME>"),
+        ("$CLERO_TOKKO_ROOT", "<CLERO_ROOT>"),
+        (clero_root, "<CLERO_ROOT>"),
+    ]
+    for original, replacement in replacements:
+        if original:
+            text = text.replace(original, replacement)
+    return text.encode("utf-8")
+
+
+source_entries = entries(source_root)
+target_entries = entries(target_root)
+if source_entries.keys() != target_entries.keys():
+    raise SystemExit(1)
+for relative, (source_kind, source_path) in source_entries.items():
+    target_kind, target_path = target_entries[relative]
+    if source_kind != target_kind:
+        raise SystemExit(1)
+    if source_kind == "file" and normalized(source_path) != normalized(target_path):
+        raise SystemExit(1)
+PY
+}
+
 preflight_install() {
   local i kind source rel target policy
+  if [[ -n "$clero_root" ]]; then
+    clero_root=$(realpath -e -- "$clero_root")
+    [[ -d "$clero_root" ]] || fail "Clero root is not a directory: $clero_root"
+  fi
   for i in "${!targets[@]}"; do
     kind=${kinds[$i]}
     source=${sources[$i]}
@@ -146,8 +208,7 @@ preflight_install() {
         compare_exact "$kind" "$source" "$target" || fail "unexpected content drift: $target"
         printf 'PARITY %s\n' "$target"
       else
-        [[ -f "$source/agents/openai.yaml" && -f "$target/agents/openai.yaml" ]] || fail "path-sensitive skill shape mismatch: $target"
-        cmp -s -- "$source/agents/openai.yaml" "$target/agents/openai.yaml" || fail "unexpected non-path skill drift: $target/agents/openai.yaml"
+        compare_path_parameterized "$source" "$target" || fail "unexpected path-sensitive content drift: $target"
         printf 'APPROVED PATH TRANSFORM %s\n' "$target"
       fi
     else
@@ -156,8 +217,6 @@ preflight_install() {
   done
 
   if [[ -n "$clero_root" ]]; then
-    clero_root=$(realpath -e -- "$clero_root")
-    [[ -d "$clero_root" ]] || fail "Clero root is not a directory: $clero_root"
     local clero_link="$codex_home/local/roots/clero-tokko"
     if [[ -L "$clero_link" ]]; then
       [[ "$(readlink -- "$clero_link")" == "$clero_root" ]] || fail "foreign Clero root link: $clero_link"
@@ -246,6 +305,7 @@ rollback_install() {
       rel=${changed_targets[$index]}
       target="$codex_home/$rel"
       original="$active_backup/original/$rel"
+      rm -f -- "$target.codex-config.$$"
       [[ ! -L "$target" ]] || rm -- "$target"
       if [[ ${changed_had_original[$index]} == 1 && -e "$original" ]]; then
         mkdir -p -- "$(dirname -- "$target")"
@@ -284,6 +344,7 @@ install_apply() {
   [[ "$(stat -c %d -- "$codex_home")" == "$(stat -c %d -- "$active_backup")" ]] || fail "backup must be on the same filesystem as CODEX_HOME"
   cp -a -- "$manifest" "$active_backup/manifest.tsv"
   printf '%s\n' "$repo_root" > "$active_backup/repository-path"
+  : > "$active_backup/changed-targets.tsv"
   trap 'rollback_install $?' ERR
   trap 'rollback_install 130' INT
   trap 'rollback_install 143' TERM
@@ -300,6 +361,7 @@ install_apply() {
     [[ ! -e "$target" ]] || had_original=1
     changed_targets+=("$rel")
     changed_had_original+=("$had_original")
+    printf '%s\t%s\n' "$rel" "$had_original" >> "$active_backup/changed-targets.tsv"
     mkdir -p -- "$(dirname -- "$target")"
     if ((had_original)); then
       mkdir -p -- "$(dirname -- "$original")"
@@ -328,11 +390,48 @@ install_apply() {
   printf 'BACKUP %s\n' "$backup_dir"
 }
 
+declare -A restore_target_set=()
+restore_incremental=false
+
+load_restore_targets() {
+  local rel had_original candidate found
+  [[ -f "$restore_backup/changed-targets.tsv" ]] || return 0
+  restore_incremental=true
+  while IFS=$'\t' read -r rel had_original; do
+    [[ -n "$rel" && "$rel" != /* && "$rel" != *".."* ]] || fail "invalid changed target in backup: $rel"
+    [[ "$had_original" == 0 || "$had_original" == 1 ]] || fail "invalid changed target state in backup: $rel"
+    [[ ! -v "restore_target_set[$rel]" ]] || fail "duplicate changed target in backup: $rel"
+    found=false
+    for candidate in "${targets[@]}"; do
+      if [[ "$candidate" == "$rel" ]]; then
+        restore_target_set["$rel"]=1
+        found=true
+        break
+      fi
+    done
+    [[ "$found" == true ]] || fail "backup changed target is not in current manifest: $rel"
+  done < "$restore_backup/changed-targets.tsv"
+}
+
+selected_for_uninstall() {
+  local rel=$1
+  [[ -z "$restore_backup" || "$restore_incremental" == false || -v "restore_target_set[$rel]" ]]
+}
+
 uninstall_preflight() {
-  local i source target
+  local i source rel target
+  if [[ -n "$restore_backup" ]]; then
+    restore_backup=$(realpath -e -- "$restore_backup")
+    [[ -d "$restore_backup/original" && -f "$restore_backup/manifest.tsv" ]] || fail "invalid backup: $restore_backup"
+    cmp -s -- "$manifest" "$restore_backup/manifest.tsv" || fail "backup manifest differs from current manifest"
+    load_restore_targets
+    printf 'RESTORE backup %s\n' "$restore_backup"
+  fi
   for i in "${!targets[@]}"; do
     source=${sources[$i]}
-    target="$codex_home/${targets[$i]}"
+    rel=${targets[$i]}
+    selected_for_uninstall "$rel" || continue
+    target="$codex_home/$rel"
     if [[ -L "$target" ]]; then
       same_link "$target" "$source" || fail "refusing foreign symlink: $target"
       printf 'REMOVE managed link %s\n' "$target"
@@ -342,12 +441,6 @@ uninstall_preflight() {
       printf 'ABSENT %s\n' "$target"
     fi
   done
-  if [[ -n "$restore_backup" ]]; then
-    restore_backup=$(realpath -e -- "$restore_backup")
-    [[ -d "$restore_backup/original" && -f "$restore_backup/manifest.tsv" ]] || fail "invalid backup: $restore_backup"
-    cmp -s -- "$manifest" "$restore_backup/manifest.tsv" || fail "backup manifest differs from current manifest"
-    printf 'RESTORE backup %s\n' "$restore_backup"
-  fi
 }
 
 uninstall_apply() {
@@ -355,6 +448,7 @@ uninstall_apply() {
   for i in "${!targets[@]}"; do
     source=${sources[$i]}
     rel=${targets[$i]}
+    selected_for_uninstall "$rel" || continue
     target="$codex_home/$rel"
     if same_link "$target" "$source"; then
       rm -- "$target"

@@ -27,9 +27,7 @@ Priority order:
 # Agent Workflow
 
 - Sol is the only user-facing planner/brain; it owns discovery, decisions, plan approval, delegation, acceptance, and final reporting.
-- Before any change/build/fix task, read and follow `SUB_AGENTS.md`.
-- After approval, use `terra_executor` as Sol's implementation hand for each atomic non-trivial change; the literal wording exemption above remains direct.
-- Use `luna_reader` only as an additional read-only worker when bulk input is large and the digest contract is clear; it never replaces Sol's planning or decisions.
+- Before delegation or any change/build/fix task, read and follow `SUB_AGENTS.md`; the literal wording exemption above remains direct.
 - If the configured role or model cannot be verified, report `[DEGRADED]` and do not claim that model.
 
 # Environment
