@@ -1,6 +1,0 @@
-interface:
-  display_name: "Clero Local Dev Triage"
-  short_description: "Diagnose Clero Process, Health, and Workflow"
-  default_prompt: "Use $clero-local-dev-triage to diagnose this Clero local dev issue without source edits and report Process, Health, and Workflow separately."
-policy:
-  allow_implicit_invocation: true

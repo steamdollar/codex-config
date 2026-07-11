@@ -9,7 +9,7 @@ template="$repo_root/templates/config.portable.toml"
 usage() {
   printf '%s\n' \
     "Usage:" \
-    "  $0 install   [--codex-home PATH] [--clero-root PATH] [--backup-dir PATH] --dry-run|--apply" \
+    "  $0 install   [--codex-home PATH] [--backup-dir PATH] --dry-run|--apply" \
     "  $0 verify    [--codex-home PATH]" \
     "  $0 uninstall [--codex-home PATH] [--restore-backup PATH] --dry-run|--apply"
 }
@@ -24,7 +24,6 @@ command_name=${1:-}
 shift
 
 codex_home=${CODEX_HOME:-$HOME/.codex}
-clero_root=""
 backup_dir=""
 restore_backup=""
 execution_mode="dry-run"
@@ -35,11 +34,6 @@ while (($#)); do
     --codex-home)
       (($# >= 2)) || fail "--codex-home requires a path"
       codex_home=$2
-      shift 2
-      ;;
-    --clero-root)
-      (($# >= 2)) || fail "--clero-root requires a path"
-      clero_root=$2
       shift 2
       ;;
     --backup-dir)
@@ -79,7 +73,6 @@ codex_home=$(realpath -m -- "$codex_home")
 declare -a kinds=()
 declare -a sources=()
 declare -a targets=()
-declare -a policies=()
 
 load_manifest() {
   local kind source target policy source_abs
@@ -93,7 +86,7 @@ load_manifest() {
         fail "denied live target: $target"
         ;;
     esac
-    [[ "$policy" == exact || "$policy" == path-parameterized ]] || fail "invalid migration policy: $policy"
+    [[ "$policy" == exact ]] || fail "invalid migration policy: $policy"
     source_abs="$repo_root/$source"
     if [[ "$kind" == file ]]; then
       [[ -f "$source_abs" && ! -L "$source_abs" ]] || fail "source file missing: $source_abs"
@@ -103,9 +96,8 @@ load_manifest() {
     kinds+=("$kind")
     sources+=("$source_abs")
     targets+=("$target")
-    policies+=("$policy")
   done < "$manifest"
-  ((${#targets[@]} == 15)) || fail "expected 15 manifest entries, found ${#targets[@]}"
+  ((${#targets[@]} == 13)) || fail "expected 13 manifest entries, found ${#targets[@]}"
 }
 
 same_link() {
@@ -122,75 +114,12 @@ compare_exact() {
   fi
 }
 
-compare_path_parameterized() {
-  local source=$1 target=$2
-  python3 - "$source" "$target" "$codex_home" "$clero_root" <<'PY'
-import sys
-from pathlib import Path
-
-source_root, target_root = map(Path, sys.argv[1:3])
-codex_home, clero_root = sys.argv[3:5]
-
-
-def entries(root):
-    result = {}
-    for path in root.rglob("*"):
-        if path.is_symlink():
-            raise SystemExit(1)
-        relative = path.relative_to(root).as_posix()
-        if path.is_file():
-            result[relative] = ("file", path)
-        elif path.is_dir():
-            result[relative] = ("dir", path)
-        else:
-            raise SystemExit(1)
-    return result
-
-
-def normalized(path):
-    data = path.read_bytes()
-    try:
-        text = data.decode("utf-8")
-    except UnicodeDecodeError:
-        return data
-
-    replacements = [
-        ("${CODEX_HOME:-$HOME/.codex}", "<CODEX_HOME>"),
-        ("$CODEX_HOME", "<CODEX_HOME>"),
-        (codex_home, "<CODEX_HOME>"),
-        ("$CLERO_TOKKO_ROOT", "<CLERO_ROOT>"),
-        (clero_root, "<CLERO_ROOT>"),
-    ]
-    for original, replacement in replacements:
-        if original:
-            text = text.replace(original, replacement)
-    return text.encode("utf-8")
-
-
-source_entries = entries(source_root)
-target_entries = entries(target_root)
-if source_entries.keys() != target_entries.keys():
-    raise SystemExit(1)
-for relative, (source_kind, source_path) in source_entries.items():
-    target_kind, target_path = target_entries[relative]
-    if source_kind != target_kind:
-        raise SystemExit(1)
-    if source_kind == "file" and normalized(source_path) != normalized(target_path):
-        raise SystemExit(1)
-PY
-}
-
 preflight_install() {
-  local i kind source rel target policy
-  if [[ -n "$clero_root" ]]; then
-    clero_root=$(realpath -e -- "$clero_root")
-    [[ -d "$clero_root" ]] || fail "Clero root is not a directory: $clero_root"
-  fi
+  local i kind source rel target
   for i in "${!targets[@]}"; do
     kind=${kinds[$i]}
     source=${sources[$i]}
     rel=${targets[$i]}
-    policy=${policies[$i]}
     target="$codex_home/$rel"
 
     if same_link "$target" "$source"; then
@@ -204,27 +133,12 @@ preflight_install() {
       else
         [[ -d "$target" ]] || fail "type mismatch, expected directory: $target"
       fi
-      if [[ "$policy" == exact ]]; then
-        compare_exact "$kind" "$source" "$target" || fail "unexpected content drift: $target"
-        printf 'PARITY %s\n' "$target"
-      else
-        compare_path_parameterized "$source" "$target" || fail "unexpected path-sensitive content drift: $target"
-        printf 'APPROVED PATH TRANSFORM %s\n' "$target"
-      fi
+      compare_exact "$kind" "$source" "$target" || fail "unexpected content drift: $target"
+      printf 'PARITY %s\n' "$target"
     else
       printf 'NEW link %s -> %s\n' "$target" "$source"
     fi
   done
-
-  if [[ -n "$clero_root" ]]; then
-    local clero_link="$codex_home/local/roots/clero-tokko"
-    if [[ -L "$clero_link" ]]; then
-      [[ "$(readlink -- "$clero_link")" == "$clero_root" ]] || fail "foreign Clero root link: $clero_link"
-    elif [[ -e "$clero_link" ]]; then
-      fail "Clero root target already exists and is not a symlink: $clero_link"
-    fi
-    printf 'CLERO root %s -> %s\n' "$clero_link" "$clero_root"
-  fi
 }
 
 check_config() {
@@ -317,7 +231,7 @@ rollback_install() {
 }
 
 install_apply() {
-  local timestamp i source rel target original tmp had_original clero_link
+  local timestamp i source rel target original tmp had_original
   local changes_required=false
   for i in "${!targets[@]}"; do
     if ! same_link "$codex_home/${targets[$i]}" "${sources[$i]}"; then
@@ -325,9 +239,6 @@ install_apply() {
       break
     fi
   done
-  if [[ -n "$clero_root" ]] && ! same_link "$codex_home/local/roots/clero-tokko" "$clero_root"; then
-    changes_required=true
-  fi
   if [[ "$changes_required" == false ]]; then
     printf '%s\n' 'NOOP: all managed links already point to this repository'
     return
@@ -372,19 +283,6 @@ install_apply() {
     mv -T -- "$tmp" "$target"
     printf 'LINKED %s -> %s\n' "$target" "$source"
   done
-
-  if [[ -n "$clero_root" ]]; then
-    clero_link="$codex_home/local/roots/clero-tokko"
-    if [[ ! -L "$clero_link" ]]; then
-      mkdir -p -- "$(dirname -- "$clero_link")"
-      changed_targets+=("local/roots/clero-tokko")
-      changed_had_original+=("0")
-      ln -s -- "$clero_root" "$clero_link"
-      printf '%s\n' "$clero_root" > "$active_backup/clero-root-created"
-    fi
-    printf 'LINKED %s -> %s\n' "$clero_link" "$clero_root"
-  fi
-
   trap - ERR INT TERM
   active_backup=""
   printf 'BACKUP %s\n' "$backup_dir"
@@ -444,7 +342,7 @@ uninstall_preflight() {
 }
 
 uninstall_apply() {
-  local i source rel target original clero_link recorded_clero
+  local i source rel target original
   for i in "${!targets[@]}"; do
     source=${sources[$i]}
     rel=${targets[$i]}
@@ -463,15 +361,6 @@ uninstall_apply() {
       fi
     fi
   done
-
-  if [[ -n "$restore_backup" && -f "$restore_backup/clero-root-created" ]]; then
-    recorded_clero=$(<"$restore_backup/clero-root-created")
-    clero_link="$codex_home/local/roots/clero-tokko"
-    if [[ -L "$clero_link" && "$(readlink -- "$clero_link")" == "$recorded_clero" ]]; then
-      rm -- "$clero_link"
-      printf 'REMOVED %s\n' "$clero_link"
-    fi
-  fi
 }
 
 load_manifest
@@ -489,11 +378,11 @@ case "$command_name" in
     ;;
   verify)
     [[ "$mode_explicit" == false ]] || fail "verify does not accept --dry-run or --apply"
-    [[ -z "$clero_root" && -z "$backup_dir" && -z "$restore_backup" ]] || fail "verify accepts only --codex-home"
+    [[ -z "$backup_dir" && -z "$restore_backup" ]] || fail "verify accepts only --codex-home"
     verify_install true
     ;;
   uninstall)
-    [[ -z "$clero_root" && -z "$backup_dir" ]] || fail "uninstall does not accept --clero-root or --backup-dir"
+    [[ -z "$backup_dir" ]] || fail "uninstall does not accept --backup-dir"
     uninstall_preflight
     if [[ "$execution_mode" == apply ]]; then
       uninstall_apply

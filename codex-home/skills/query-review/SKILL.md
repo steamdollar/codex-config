@@ -39,7 +39,8 @@ Pull the query apart against the metric name and intended meaning:
 - Same population on both sides? For any ratio or average, check whether numerator and denominator count the same set of entities. A frequent bug is numerator filtered on one event-time and denominator on another, creating different cohorts.
 - Cohort vs period-activity: conversion, acceptance, and similar rates usually imply a cohort where numerator is a subset of denominator and should stay 0-100%. If it is "things that happened in range divided by other things in range", it can exceed 100% or go negative. Demonstrate with a concrete numeric example.
 - Aggregation grain: does raw `COUNT(*)` over an event log over-count multiple rows per entity? Sibling metrics should dedupe consistently with `SELECT DISTINCT key` or a shared fragment.
-- Time-filter target: when the same `{{DATE_FILTER}}` or date predicate appears twice, confirm which columns each instance binds to.
+- Time-filter target: when the same date placeholder or predicate appears more
+  than once, confirm which columns and populations each instance filters.
 - Format sanity: percent should be at most 100% unless intentionally not; currency and durations should be non-negative.
 - Mark anything not verified from code or data as `[UNKNOWN: ...]`. Do not guess schema, keys, or partition format.
 
@@ -64,18 +65,11 @@ Say the tradeoff explicitly: a fresh cohort looks low because members have not c
 - Use targeted tests only: `npx jest <path>` or the workspace's narrow runner. Never run the full suite for a one-file change. Add or adjust a regression guard that locks the intent, such as asserting cohort `LEFT JOIN` is present, not the literal SQL.
 - Sync the docs or dashboard definition line if the metric meaning changed.
 
-## Clero Metrics Notes
-
-- Queries live in `Clero-Website/apps/ui/components/admin/metrics/queries/*.ts`.
-- Shared grain fragments live in `queries/offer-sql.ts`: `JSON_ROW_FILTER`, `CAMPAIGN_ID` `COALESCE`, `distinctOfferKeys`, `offerFirstSeen`, and `matchedOfferCosts`. Reuse these instead of hand-writing predicates.
-- The offer table is an event log: one row per offer per transition day. `PENDING` or creation is never exported, so "first transition" is the creation proxy. Treat any `PENDING`-dependent count as an approximation.
-- Regression guards live in `queries/__tests__/queries.test.ts`. Run from `apps/ui`: `npx jest components/admin/metrics`.
-- Status dashboard: `z_archived/04_metrics/00_dashboard.md`; status meanings are done, proxy-based done, and blocked by publisher gap.
-
 ## Anti-Patterns
 
 - Line-by-line explanation with no top-down structure.
 - Critiquing semantics while the user is still asking what a keyword does.
 - Analyzing multiple queries in one turn, or preemptively rewriting before the user decides.
-- Asserting query behavior from memory. Read the fragment or util that the template expands to, and confirm what `{{DATE_FILTER}}` becomes.
+- Asserting query behavior from memory. Read the fragment or util that the
+  template expands to, and confirm what each date placeholder becomes.
 - Running the full test suite for a single-query change.

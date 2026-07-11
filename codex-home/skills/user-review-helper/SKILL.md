@@ -45,12 +45,6 @@ Never dump bare paths as the primary list.
 
 **Recommend a critical path.** End with 3-6 files that are the minimum review set. Choose files whose mistakes would break runtime behavior or contract, including a behavior-defining test when it is essential evidence.
 
-## Use
-
-Use this skill when the user asks which changed files to review, what order to review them in, or asks for nontrivial changed files only.
-
-Do not use this skill when the user asks the agent to perform a code review. In that case, use a review stance: findings first, severity ordered, with file/line evidence.
-
 ## Procedure
 
 1. Identify the change set.
@@ -74,7 +68,8 @@ Do not use this skill when the user asks the agent to perform a code review. In 
 
 ## Output Format
 
-If there is one concern:
+Use `## 리뷰 순서` for one concern. For multiple unrelated concerns, repeat the
+review section with headings such as `## A. <Concern>` and `## B. <Concern>`.
 
 ```markdown
 ## 리뷰 순서
@@ -82,32 +77,6 @@ If there is one concern:
 | # | File | What changed |
 |---|---|---|
 | 1 | [file.ts](/abs/path/file.ts:42) | One-line diff summary |
-| 2 | [other.ts](/abs/path/other.ts:17) | One-line diff summary |
-
-## Skipped
-
-- Mechanical/redundant tests: <count>
-- Re-exports/i18n/mocks/generated/module wiring: <count>
-
-## Critical Path
-
-- #1 - <why this matters>
-- #2 - <why this matters>
-```
-
-For multiple unrelated concerns, use:
-
-```markdown
-## A. <Concern>
-
-| # | File | What changed |
-|---|---|---|
-| 1 | [file.ts](/abs/path/file.ts:42) | One-line diff summary |
-
-## B. <Concern>
-
-| # | File | What changed |
-|---|---|---|
 | 2 | [other.ts](/abs/path/other.ts:17) | One-line diff summary |
 
 ## Skipped

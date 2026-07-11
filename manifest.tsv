@@ -8,8 +8,6 @@ file	codex-home/hooks/context-budget.py	hooks/context-budget.py	exact
 file	codex-home/agents/luna-reader.toml	agents/luna-reader.toml	exact
 file	codex-home/agents/terra-executor.toml	agents/terra-executor.toml	exact
 file	codex-home/rules/default.rules	rules/default.rules	exact
-dir	codex-home/skills/clero-local-dev-triage	skills/clero-local-dev-triage	path-parameterized
-dir	codex-home/skills/clero-stepwise-change	skills/clero-stepwise-change	path-parameterized
 dir	codex-home/skills/coldstart	skills/coldstart	exact
 dir	codex-home/skills/gh-pr-comment-report	skills/gh-pr-comment-report	exact
 dir	codex-home/skills/query-review	skills/query-review	exact

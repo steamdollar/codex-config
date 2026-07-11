@@ -10,10 +10,6 @@ args=(
   --apply
 )
 
-if [[ -n "${CLERO_TOKKO_ROOT:-}" ]]; then
-  args+=(--clero-root "$CLERO_TOKKO_ROOT")
-fi
-
 # Explicit CLI arguments come last so callers can override defaults, including
 # using --dry-run before applying changes on an existing machine.
 exec "$installer" "${args[@]}" "$@"

@@ -108,40 +108,6 @@ test_incremental_restore_preserves_unchanged_links() {
   done < "$manifest"
 }
 
-test_path_transform_and_drift_guard() {
-  local home="$tmp_root/path-home" clero_root="$tmp_root/clero-root"
-  local skill source target
-  new_home "$home"
-  mkdir -p -- "$clero_root"
-
-  for skill in clero-local-dev-triage clero-stepwise-change; do
-    source="$repo_root/codex-home/skills/$skill"
-    target="$home/skills/$skill"
-    mkdir -p -- "$(dirname -- "$target")"
-    cp -a -- "$source" "$target"
-    python3 - "$target/SKILL.md" "$home" "$clero_root" <<'PY'
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-text = path.read_text()
-text = text.replace("${CODEX_HOME:-$HOME/.codex}", sys.argv[2])
-text = text.replace("$CODEX_HOME", sys.argv[2])
-text = text.replace("$CLERO_TOKKO_ROOT", sys.argv[3])
-path.write_text(text)
-PY
-  done
-
-  "$installer" install --codex-home "$home" --clero-root "$clero_root" --dry-run >"$tmp_root/path.out"
-  grep -q 'APPROVED PATH TRANSFORM' "$tmp_root/path.out" || fail "allowed path transform was not recognized"
-
-  printf '\nunauthorized drift\n' >> "$home/skills/clero-local-dev-triage/SKILL.md"
-  if "$installer" install --codex-home "$home" --clero-root "$clero_root" --dry-run >"$tmp_root/drift.out" 2>"$tmp_root/drift.err"; then
-    fail "path-sensitive content drift was accepted"
-  fi
-  grep -q 'unexpected path-sensitive content drift' "$tmp_root/drift.err" || fail "drift failure reason was not reported"
-}
-
 test_rollback_after_link_failure() {
   local home="$tmp_root/rollback-home" backup="$tmp_root/rollback-backup"
   local fake_bin="$tmp_root/fake-bin" real_mv
@@ -172,6 +138,5 @@ test_rollback_after_link_failure() {
 test_empty_install_verify_uninstall
 test_backup_restore
 test_incremental_restore_preserves_unchanged_links
-test_path_transform_and_drift_guard
 test_rollback_after_link_failure
 printf '%s\n' 'PASS: portable Codex config installer integration tests'

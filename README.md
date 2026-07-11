@@ -10,7 +10,7 @@ symlinks; managed skills and runtime state stay local.
 - Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
 - Custom agents: `luna-reader.toml`, `terra-executor.toml`
 - Custom rule: `default.rules`
-- Six user-authored skills listed in `manifest.tsv`
+- Four user-authored skills listed in `manifest.tsv`
 
 `config.toml` is not managed as a symlink. `templates/config.portable.toml`
 contains a secret-free portable reference; machine-local project trust and UI
@@ -35,12 +35,6 @@ agent, rule, and skill links without replacing `.system` or runtime state.
 Existing identical content is backed up before replacement; drift or foreign
 symlinks stop setup.
 
-For Clero machines, pass the local checkout through the environment:
-
-```bash
-CLERO_TOKKO_ROOT=/path/to/clero/tokko ./setup.sh
-```
-
 To preview an existing machine without changing it:
 
 ```bash
@@ -60,7 +54,6 @@ Preview first:
 ```bash
 ./scripts/codex-config.sh install \
   --codex-home "${CODEX_HOME:-$HOME/.codex}" \
-  --clero-root /path/to/clero/tokko \
   --dry-run
 ```
 
@@ -69,7 +62,6 @@ Apply only after reviewing the preview:
 ```bash
 ./scripts/codex-config.sh install \
   --codex-home "${CODEX_HOME:-$HOME/.codex}" \
-  --clero-root /path/to/clero/tokko \
   --apply
 ```
 
@@ -111,8 +103,8 @@ bash tests/codex-config-test.sh
 ```
 
 The tests cover threshold and one-shot behavior, dry-run/apply/verify/uninstall,
-incremental and legacy backup restoration, path-parameterized drift rejection,
-and rollback after an injected link failure.
+incremental and legacy backup restoration, and rollback after an injected link
+failure.
 
 ## Uninstall or rollback
 
