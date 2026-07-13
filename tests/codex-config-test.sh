@@ -13,6 +13,69 @@ fail() {
   exit 1
 }
 
+test_role_configuration() {
+  python3 - "$repo_root" <<'PY'
+from pathlib import Path
+import sys
+import tomllib
+
+root = Path(sys.argv[1])
+with (root / "config.toml").open("rb") as f:
+    config = tomllib.load(f)
+
+expected_config = {
+    "model": "gpt-5.6-terra",
+    "model_reasoning_effort": "medium",
+}
+for key, value in expected_config.items():
+    if config.get(key) != value:
+        raise SystemExit(f"config.toml {key}: expected {value!r}, got {config.get(key)!r}")
+
+expected_roles = {
+    "luna-reader.toml": {
+        "name": "reader",
+        "model": "gpt-5.6-luna",
+        "model_reasoning_effort": "low",
+        "sandbox_mode": "read-only",
+    },
+    "terra-executor.toml": {
+        "name": "executor",
+        "model": "gpt-5.6-terra",
+        "model_reasoning_effort": "medium",
+        "sandbox_mode": "workspace-write",
+    },
+    "advisor.toml": {
+        "name": "advisor",
+        "model": "gpt-5.6-sol",
+        "model_reasoning_effort": "high",
+        "sandbox_mode": "read-only",
+    },
+}
+
+seen_names = set()
+for filename, expected in expected_roles.items():
+    with (root / "codex-home" / "agents" / filename).open("rb") as f:
+        role = tomllib.load(f)
+    for key, value in expected.items():
+        if role.get(key) != value:
+            raise SystemExit(f"{filename} {key}: expected {value!r}, got {role.get(key)!r}")
+    if role["name"] in seen_names:
+        raise SystemExit(f"duplicate runtime role name: {role['name']}")
+    seen_names.add(role["name"])
+
+manifest = (root / "manifest.tsv").read_text()
+if "codex-home/agents/advisor.toml\tagents/advisor.toml\texact" not in manifest:
+    raise SystemExit("manifest does not install advisor.toml")
+
+sub_agents = (root / "codex-home" / "SUB_AGENTS.md").read_text()
+for selector in ("`reader`", "`advisor`", "`executor`"):
+    if selector not in sub_agents:
+        raise SystemExit(f"SUB_AGENTS.md missing native selector {selector}")
+if 'fork_turns = "none"' not in sub_agents:
+    raise SystemExit("SUB_AGENTS.md missing depth-isolated native delegation contract")
+PY
+}
+
 new_home() {
   local home=$1
   mkdir -p -- "$home"
@@ -136,6 +199,7 @@ test_rollback_after_link_failure() {
   [[ -z "$(find "$home" -name '*.codex-config.*' -print -quit)" ]] || fail "temporary link remained after rollback"
 }
 
+test_role_configuration
 test_empty_install_verify_uninstall
 test_backup_restore
 test_incremental_restore_preserves_unchanged_links

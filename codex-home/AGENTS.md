@@ -28,7 +28,7 @@ Priority order:
 
 # Agent Workflow
 
-- Sol is the only user-facing planner/brain; it owns discovery, decisions, plan approval, delegation, acceptance, and final reporting.
+- The primary agent is the only user-facing coordinator; it owns discovery, decisions, plan approval, delegation, acceptance, and final reporting.
 - Before any non-trivial task—including review, analysis, bulk reads, change/build/fix, or delegation—read and apply `SUB_AGENTS.md`; the literal wording exemption above remains direct.
 - The user does not need to request a sub-agent explicitly. When the `SUB_AGENTS.md` delegation gate is satisfied, delegate by default without asking unless routing materially changes scope, risk, or cost.
 - If the configured role or model cannot be verified, report `[DEGRADED]` and do not claim that model.
