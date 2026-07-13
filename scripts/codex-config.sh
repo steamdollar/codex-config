@@ -9,7 +9,7 @@ template="$repo_root/templates/config.portable.toml"
 usage() {
   printf '%s\n' \
     "Usage:" \
-    "  $0 install   [--codex-home PATH] [--backup-dir PATH] --dry-run|--apply" \
+    "  $0 install   [--codex-home PATH] [--backup-dir PATH] [--allow-drift] --dry-run|--apply" \
     "  $0 verify    [--codex-home PATH]" \
     "  $0 uninstall [--codex-home PATH] [--restore-backup PATH] --dry-run|--apply"
 }
@@ -17,6 +17,30 @@ usage() {
 fail() {
   printf 'ERROR: %s\n' "$*" >&2
   exit 1
+}
+
+canonical_path() {
+  python3 - "$1" <<'PY'
+import os
+import sys
+
+print(os.path.realpath(os.path.expanduser(sys.argv[1])))
+PY
+}
+
+filesystem_id() {
+  python3 - "$1" <<'PY'
+import os
+import sys
+
+print(os.stat(sys.argv[1]).st_dev)
+PY
+}
+
+move_into_place() {
+  local source=$1 target=$2
+  [[ ! -e "$target" && ! -L "$target" ]] || fail "target appeared during install: $target"
+  mv "$source" "$target"
 }
 
 command_name=${1:-}
@@ -28,6 +52,7 @@ backup_dir=""
 restore_backup=""
 execution_mode="dry-run"
 mode_explicit=false
+allow_drift=false
 
 while (($#)); do
   case "$1" in
@@ -56,6 +81,10 @@ while (($#)); do
       mode_explicit=true
       shift
       ;;
+    --allow-drift)
+      allow_drift=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -67,7 +96,7 @@ while (($#)); do
 done
 
 [[ -f "$manifest" ]] || fail "manifest missing: $manifest"
-codex_home=$(realpath -m -- "$codex_home")
+codex_home=$(canonical_path "$codex_home")
 [[ "$codex_home" = /* && "$codex_home" != / ]] || fail "unsafe CODEX_HOME: $codex_home"
 
 declare -a kinds=()
@@ -126,15 +155,20 @@ preflight_install() {
       printf 'OK link %s -> %s\n' "$target" "$source"
       continue
     fi
-    [[ ! -L "$target" ]] || fail "foreign symlink: $target -> $(readlink -- "$target")"
+    [[ ! -L "$target" ]] || fail "foreign symlink: $target -> $(readlink "$target")"
     if [[ -e "$target" ]]; then
       if [[ "$kind" == file ]]; then
         [[ -f "$target" ]] || fail "type mismatch, expected file: $target"
       else
         [[ -d "$target" ]] || fail "type mismatch, expected directory: $target"
       fi
-      compare_exact "$kind" "$source" "$target" || fail "unexpected content drift: $target"
-      printf 'PARITY %s\n' "$target"
+      if compare_exact "$kind" "$source" "$target"; then
+        printf 'PARITY %s\n' "$target"
+      elif [[ "$allow_drift" == true ]]; then
+        printf 'DRIFT %s (will be backed up and replaced)\n' "$target"
+      else
+        fail "unexpected content drift: $target"
+      fi
     else
       printf 'NEW link %s -> %s\n' "$target" "$source"
     fi
@@ -248,11 +282,11 @@ install_apply() {
   if [[ -z "$backup_dir" ]]; then
     backup_dir="$codex_home/backups/portable-codex-config/$timestamp"
   fi
-  active_backup=$(realpath -m -- "$backup_dir")
+  active_backup=$(canonical_path "$backup_dir")
   backup_dir=$active_backup
   [[ ! -e "$active_backup" ]] || fail "backup already exists: $active_backup"
   mkdir -p -- "$active_backup/original"
-  [[ "$(stat -c %d -- "$codex_home")" == "$(stat -c %d -- "$active_backup")" ]] || fail "backup must be on the same filesystem as CODEX_HOME"
+  [[ "$(filesystem_id "$codex_home")" == "$(filesystem_id "$active_backup")" ]] || fail "backup must be on the same filesystem as CODEX_HOME"
   cp -a -- "$manifest" "$active_backup/manifest.tsv"
   printf '%s\n' "$repo_root" > "$active_backup/repository-path"
   : > "$active_backup/changed-targets.tsv"
@@ -280,7 +314,7 @@ install_apply() {
     fi
     tmp="$target.codex-config.$$"
     ln -s -- "$source" "$tmp"
-    mv -T -- "$tmp" "$target"
+    move_into_place "$tmp" "$target"
     printf 'LINKED %s -> %s\n' "$target" "$source"
   done
   trap - ERR INT TERM
@@ -288,8 +322,17 @@ install_apply() {
   printf 'BACKUP %s\n' "$backup_dir"
 }
 
-declare -A restore_target_set=()
+declare -a restore_targets=()
 restore_incremental=false
+
+restore_target_contains() {
+  local candidate rel=$1
+  ((${#restore_targets[@]})) || return 1
+  for candidate in "${restore_targets[@]}"; do
+    [[ "$candidate" == "$rel" ]] && return 0
+  done
+  return 1
+}
 
 load_restore_targets() {
   local rel had_original candidate found
@@ -298,11 +341,11 @@ load_restore_targets() {
   while IFS=$'\t' read -r rel had_original; do
     [[ -n "$rel" && "$rel" != /* && "$rel" != *".."* ]] || fail "invalid changed target in backup: $rel"
     [[ "$had_original" == 0 || "$had_original" == 1 ]] || fail "invalid changed target state in backup: $rel"
-    [[ ! -v "restore_target_set[$rel]" ]] || fail "duplicate changed target in backup: $rel"
+    restore_target_contains "$rel" && fail "duplicate changed target in backup: $rel"
     found=false
     for candidate in "${targets[@]}"; do
       if [[ "$candidate" == "$rel" ]]; then
-        restore_target_set["$rel"]=1
+        restore_targets+=("$rel")
         found=true
         break
       fi
@@ -313,13 +356,14 @@ load_restore_targets() {
 
 selected_for_uninstall() {
   local rel=$1
-  [[ -z "$restore_backup" || "$restore_incremental" == false || -v "restore_target_set[$rel]" ]]
+  [[ -z "$restore_backup" || "$restore_incremental" == false ]] && return 0
+  restore_target_contains "$rel"
 }
 
 uninstall_preflight() {
   local i source rel target
   if [[ -n "$restore_backup" ]]; then
-    restore_backup=$(realpath -e -- "$restore_backup")
+    restore_backup=$(canonical_path "$restore_backup")
     [[ -d "$restore_backup/original" && -f "$restore_backup/manifest.tsv" ]] || fail "invalid backup: $restore_backup"
     cmp -s -- "$manifest" "$restore_backup/manifest.tsv" || fail "backup manifest differs from current manifest"
     load_restore_targets
@@ -378,11 +422,12 @@ case "$command_name" in
     ;;
   verify)
     [[ "$mode_explicit" == false ]] || fail "verify does not accept --dry-run or --apply"
-    [[ -z "$backup_dir" && -z "$restore_backup" ]] || fail "verify accepts only --codex-home"
+    [[ -z "$backup_dir" && -z "$restore_backup" && "$allow_drift" == false ]] || fail "verify accepts only --codex-home"
     verify_install true
     ;;
   uninstall)
     [[ -z "$backup_dir" ]] || fail "uninstall does not accept --backup-dir"
+    [[ "$allow_drift" == false ]] || fail "uninstall does not accept --allow-drift"
     uninstall_preflight
     if [[ "$execution_mode" == apply ]]; then
       uninstall_apply

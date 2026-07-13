@@ -75,13 +75,13 @@ Use this shape unless the user asks for something else:
 - Source: <file:line or comment URL>
 - Status: <unresolved/resolved/outdated if known>
 
-### 원문
+### Original
 > <original comment text>
 
-### 분석
+### Analysis
 <2-5 lines explaining the issue and verified code context.>
 
-### 해결책
+### Resolution
 <recommended fix in 2-5 lines, including focused tests if needed.>
 
 ## 2. <short issue title>
@@ -92,7 +92,7 @@ Use this shape unless the user asks for something else:
 
 - Write the final report in Korean by default, but keep code identifiers and technical terms in English.
 - Keep the report compact; target 100 lines or fewer.
-- Preserve quoted comment wording exactly in the `원문` section; do not paraphrase excerpts.
+- Preserve quoted comment wording exactly in the `Original` section; do not paraphrase excerpts.
 - Use one section per meaningful comment or comment cluster.
 - Prefer one recommended fix over long option matrices.
 - Include a command summary only if the user asks, or if a data source fallback matters.

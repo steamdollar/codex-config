@@ -92,7 +92,7 @@ test_incremental_restore_preserves_unchanged_links() {
   done < "$manifest"
 
   "$installer" install --codex-home "$home" --backup-dir "$backup" --apply >/dev/null
-  [[ "$(wc -l < "$backup/changed-targets.tsv")" == 2 ]] || fail "incremental backup did not record exactly two changed targets"
+  [[ "$(wc -l < "$backup/changed-targets.tsv")" -eq 2 ]] || fail "incremental backup did not record exactly two changed targets"
   "$installer" uninstall --codex-home "$home" --restore-backup "$backup" --apply >/dev/null
 
   while IFS=$'\t' read -r kind source rel policy; do
@@ -113,6 +113,7 @@ test_rollback_after_link_failure() {
   local fake_bin="$tmp_root/fake-bin" real_mv
   local kind source rel policy
   new_home "$home"
+  home=$(cd -- "$home" && pwd -P)
   while IFS=$'\t' read -r kind source rel policy; do
     [[ -n "$kind" && "$kind" != \#* ]] || continue
     mkdir -p -- "$(dirname -- "$home/$rel")"
@@ -122,7 +123,9 @@ test_rollback_after_link_failure() {
   real_mv=$(command -v mv)
   {
     printf '%s\n' '#!/usr/bin/env bash'
-    printf 'if [[ ${1:-} == -T && ${!#} == %q ]]; then exit 97; fi\n' "$home/REVIEW.md"
+    printf 'target=""; for arg do target=$arg; done\n'
+    printf 'source=""; for arg do [[ "$arg" == *.codex-config.* ]] && source=$arg; done\n'
+    printf 'if [[ "$target" == %q && -n "$source" ]]; then exit 97; fi\n' "$home/REVIEW.md"
     printf 'exec %q "$@"\n' "$real_mv"
   } > "$fake_bin/mv"
   chmod +x "$fake_bin/mv"

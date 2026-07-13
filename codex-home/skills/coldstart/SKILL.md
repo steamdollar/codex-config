@@ -49,27 +49,27 @@ Produce a prompt the user can paste into a brand-new Codex/coding-agent session 
 ```markdown
 # Cold start - <task name>
 
-먼저 다음 문서만 읽고 컨텍스트를 잡는다:
+Read only the following documents first to establish context:
 1. `<absolute path>` - <why this is authoritative>
 2. `<absolute path>` - <specific section/header if relevant>
 3. `<absolute path>` - <only if it adds non-overlapping context>
 
-목표 한 줄: <single sentence>
+One-line goal: <single sentence>
 
-현재 상태:
-- Branch: `<branch>` 또는 `[UNKNOWN: branch 미확인]`
-- 진행 완료: <verified short bullets>
-- 이어서 할 일: <verified next action>
+Current state:
+- Branch: `<branch>` or `[UNKNOWN: branch not confirmed]`
+- Completed: <verified short bullets>
+- Next action: <verified next action>
 
-진행 순서:
-1. Discovery - 실제 code path와 contract를 확인하고, 확인한 파일/데이터 흐름/불확실한 점을 먼저 보고한다.
-2. 계획/승인 - 기존 plan과 repo 지침을 따른다. plan 또는 승인이 필요한 변경이면 코드 전에 처리한다.
-3. 구현 - 필요한 승인을 받은 atomic step만 진행한다. repo layer 순서와 기존 convention을 우선한다.
-4. 검증 - 변경 범위에 맞는 focused test/typecheck만 실행하고 결과를 보고한다.
+Execution order:
+1. Discovery - Verify the real code path and contract, then report the verified files, data flow, and uncertainties first.
+2. Planning/approval - Follow the existing plan and repository guidance. Handle any required plan or approval before changing code.
+3. Implementation - Perform only approved atomic steps. Prefer the repository's layer order and existing conventions.
+4. Verification - Run only focused tests/typechecks appropriate to the change and report the results.
 
-이미 결정된 것 / 주의할 점:
-- <decision or gotcha> - 근거: `<file or section>`
-- <decision or gotcha> - 근거: `<file or section>`
+Existing decisions / gotchas:
+- <decision or gotcha> - basis: `<file or section>`
+- <decision or gotcha> - basis: `<file or section>`
 
-추측하지 말고, 위 문서와 현재 코드/git evidence로 다시 확인해서 진행한다.
+Do not guess. Reconfirm the task using the documents above and current code/git evidence before proceeding.
 ```

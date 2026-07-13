@@ -65,6 +65,16 @@ Apply only after reviewing the preview:
   --apply
 ```
 
+If a managed live file intentionally differs from the repository version, add
+`--allow-drift` to explicitly back it up and replace it:
+
+```bash
+./scripts/codex-config.sh install \
+  --codex-home "${CODEX_HOME:-$HOME/.codex}" \
+  --allow-drift \
+  --apply
+```
+
 The install prints its timestamped backup path. Keep that path for rollback.
 
 ## Verify

@@ -68,11 +68,11 @@ Never dump bare paths as the primary list.
 
 ## Output Format
 
-Use `## 리뷰 순서` for one concern. For multiple unrelated concerns, repeat the
+Use `## Review Order` for one concern. For multiple unrelated concerns, repeat the
 review section with headings such as `## A. <Concern>` and `## B. <Concern>`.
 
 ```markdown
-## 리뷰 순서
+## Review Order
 
 | # | File | What changed |
 |---|---|---|
