@@ -7,16 +7,36 @@ symlinks; managed skills and runtime state stay local.
 ## Managed scope
 
 - Root guidance: `AGENTS.md`, `SUB_AGENTS.md`, `REVIEW.md`, `DOMAIN_RULES.md`
-- Machine configuration: `config.toml`
+- Shared machine configuration: `config.toml`
 - Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
 - Custom-agent role bindings: `advisor.toml`, `luna-reader.toml`, `terra-executor.toml`
 - Attested reader fallback (legacy filename): `bin/luna-reader-worker`
 - Custom rule: `default.rules`
 - Four user-authored skills listed in `manifest.tsv`
 
-`config.toml` is managed as a symlink to the repository's machine profile. It
-contains the selected model, plugins, and local project trust entries. Review
-absolute project paths before using this profile on another machine.
+`config.toml` is managed as a symlink to the repository's shared profile. It
+contains settings that are portable across machines, such as the selected
+model, plugins, and service defaults. Do not put absolute project trust paths
+in this file.
+
+Project trust is machine-local. If you need to preserve trusted projects, put
+their absolute paths in a local profile next to `config.toml`, for example
+`$CODEX_HOME/workstation.config.toml`:
+
+```toml
+[projects."/home/you/work/project"]
+trust_level = "trusted"
+```
+
+Run Codex with that overlay when needed:
+
+```bash
+codex --profile workstation
+```
+
+The profile file is intentionally not managed by this repository because its
+project paths differ by machine. Codex loads the base `config.toml` and then
+overlays the selected profile.
 
 Native custom agents use Codex's `MultiAgentV2` interface under the custom
 `agents` namespace. This exposes the `agent_type` selector that the reserved
@@ -42,7 +62,7 @@ cd "${CODEX_HOME:-$HOME/.codex}/codex-config"
 ```
 
 `setup.sh` applies the versioned `manifest.tsv`: it creates symlinks for the
-root guidance and machine configuration files and also installs the lifecycle
+root guidance and shared configuration files and also installs the lifecycle
 hook, custom agent, rule, and skill links without replacing `.system` or
 runtime state.
 Existing identical content is backed up before replacement; drift or foreign

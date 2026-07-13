@@ -200,6 +200,12 @@ test_rollback_after_link_failure() {
 }
 
 test_role_configuration
+
+test_shared_config_has_no_machine_project_paths() {
+  ! rg -q '^\[projects\.' "$repo_root/config.toml" || fail "shared config contains machine-local project trust"
+}
+
+test_shared_config_has_no_machine_project_paths
 test_empty_install_verify_uninstall
 test_backup_restore
 test_incremental_restore_preserves_unchanged_links
