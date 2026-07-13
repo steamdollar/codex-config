@@ -1,0 +1,24 @@
+model = "gpt-5.6-sol"
+model_reasoning_effort = "high"
+personality = "pragmatic"
+service_tier = "default"
+[plugins."github@openai-curated"]
+enabled = true
+
+[plugins."google-drive@openai-curated"]
+enabled = true
+
+[projects."/Users/chronica/Desktop/lsj/side/copylingo"]
+trust_level = "trusted"
+
+[projects."/Users/chronica/work/clero"]
+trust_level = "trusted"
+
+[projects."/Users/chronica/work/clero/tokko"]
+trust_level = "trusted"
+
+[projects."/Users/chronica/work/clero/tokko/Clero-Website"]
+trust_level = "trusted"
+
+[projects."/Users/chronica/.codex"]
+trust_level = "trusted"

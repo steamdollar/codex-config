@@ -28,10 +28,10 @@ Goal: **Sol alone faces the user and owns decisions.** It executes directly or d
 
 ## Model Routing and Fallback
 
-- Required: Sol = `gpt-5.6-sol` xhigh; Terra = `gpt-5.6-terra` medium; Luna = `gpt-5.6-luna` low.
+- Required: Sol = `gpt-5.6-sol` high; Terra = `gpt-5.6-terra` medium; Luna = `gpt-5.6-luna` low.
 - Spawn the configured type; if only a model selector exists, pin its slug.
 - Never guess or claim an unverified role/model. Report `[DEGRADED: {role} model pinning unavailable]` and apply the gate for Sol-direct fallback. Treat quota, rate-limit, model, and spawn failures the same; ask the user only for a material scope/risk/cost change.
-- Use WSL `agy` only for Luna unavailability, a valuable provider-diverse check, a huge independent batch, or required browser/Google integration. Run `agy models`, select the lowest-sufficient Flash model, then `agy --sandbox --print` with Luna's digest contract. Never use it as a routine co-default.
+- Use `agy` only when `command -v agy` succeeds and the user explicitly approves cross-provider execution, for Luna unavailability, a valuable provider-diverse check, a huge independent batch, or required browser/Google integration. Send only the minimum required artifacts, never secrets or the full conversation. Run `agy models`, select the lowest-sufficient Flash model, then `agy --sandbox --print` with Luna's digest contract. Never use it as a routine co-default.
 - Report `[DEGRADED: Luna unavailable -> Antigravity/{actual model}]` or `[CROSS-CHECK: Antigravity/{actual model}]`; on failure, use the direct-fallback rule.
 - Depth is 1: Luna and Terra never spawn. Only one Terra writes to a repo at once; Luna is read-only.
 

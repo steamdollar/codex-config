@@ -4,7 +4,7 @@ set -Eeuo pipefail
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 repo_root=$(cd -- "$script_dir/.." && pwd -P)
 manifest="$repo_root/manifest.tsv"
-template="$repo_root/templates/config.portable.toml"
+config_source="$repo_root/config.toml"
 
 usage() {
   printf '%s\n' \
@@ -108,7 +108,7 @@ load_manifest() {
   while IFS=$'\t' read -r kind source target policy; do
     [[ -n "$kind" && "$kind" != \#* ]] || continue
     [[ "$kind" == file || "$kind" == dir ]] || fail "invalid manifest type: $kind"
-    [[ "$source" == codex-home/* && "$source" != *".."* ]] || fail "unsafe source: $source"
+    [[ ("$source" == codex-home/* || "$source" == config.toml) && "$source" != *".."* ]] || fail "unsafe source: $source"
     [[ "$target" != /* && "$target" != *".."* ]] || fail "unsafe live target: $target"
     case "$target" in
       skills/.system|skills/.system/*|plugins|plugins/*|auth.json|sessions|sessions/*|memories|memories/*|log|log/*|sqlite|sqlite/*)
@@ -126,7 +126,7 @@ load_manifest() {
     sources+=("$source_abs")
     targets+=("$target")
   done < "$manifest"
-  ((${#targets[@]} == 13)) || fail "expected 13 manifest entries, found ${#targets[@]}"
+  ((${#targets[@]} > 0)) || fail "manifest contains no entries"
 }
 
 same_link() {
@@ -178,41 +178,22 @@ preflight_install() {
 check_config() {
   local live_config="$codex_home/config.toml"
   [[ -f "$live_config" ]] || { printf 'CONFIG missing: %s\n' "$live_config"; return 1; }
-  python3 - "$template" "$live_config" <<'PY'
+  cmp -s -- "$config_source" "$live_config" && {
+    printf '%s\n' 'CONFIG managed source matches'
+    return 0
+  }
+  printf 'CONFIG differs from managed source: %s\n' "$config_source"
+  return 1
+}
+
+check_config_syntax() {
+  python3 - "$config_source" <<'PY'
 import sys
 import tomllib
 
-template_path, live_path = sys.argv[1:]
-with open(template_path, "rb") as f:
-    template = tomllib.load(f)
-with open(live_path, "rb") as f:
-    live = tomllib.load(f)
-
-def leaves(value, prefix=()):
-    for key, child in value.items():
-        path = prefix + (key,)
-        if isinstance(child, dict):
-            yield from leaves(child, path)
-        else:
-            yield path, child
-
-different = []
-for path, expected in leaves(template):
-    current = live
-    for key in path:
-        if not isinstance(current, dict) or key not in current:
-            different.append(("missing", path, expected, None))
-            break
-        current = current[key]
-    else:
-        if current != expected:
-            different.append(("different", path, expected, current))
-
-if different:
-    for status, path, expected, current in different:
-        print(f"CONFIG {status}: {'.'.join(path)} expected={expected!r} current={current!r}")
-    raise SystemExit(1)
-print("CONFIG portable keys match")
+with open(sys.argv[1], "rb") as f:
+    tomllib.load(f)
+print("CONFIG managed source is valid TOML")
 PY
 }
 
@@ -229,11 +210,11 @@ verify_install() {
       failures=$((failures + 1))
     fi
   done
-  if ! check_config; then
+  if ! check_config_syntax || ! check_config; then
     if [[ "$require_config_match" == true ]]; then
       failures=$((failures + 1))
     else
-      printf '%s\n' 'WARN: live config differs from the portable template; symlinks are installed and config was not changed' >&2
+      printf '%s\n' 'WARN: live config differs from the managed source; symlinks are installed and config was not changed' >&2
     fi
   fi
   ((failures == 0)) || fail "$failures verification checks failed"

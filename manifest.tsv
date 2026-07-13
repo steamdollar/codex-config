@@ -3,6 +3,7 @@ file	codex-home/AGENTS.md	AGENTS.md	exact
 file	codex-home/SUB_AGENTS.md	SUB_AGENTS.md	exact
 file	codex-home/REVIEW.md	REVIEW.md	exact
 file	codex-home/DOMAIN_RULES.md	DOMAIN_RULES.md	exact
+file	config.toml	config.toml	exact
 file	codex-home/hooks.json	hooks.json	exact
 file	codex-home/hooks/context-budget.py	hooks/context-budget.py	exact
 file	codex-home/agents/luna-reader.toml	agents/luna-reader.toml	exact

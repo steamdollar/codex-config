@@ -5,7 +5,6 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 repo_root=$(cd -- "$script_dir/.." && pwd -P)
 installer="$repo_root/scripts/codex-config.sh"
 manifest="$repo_root/manifest.tsv"
-template="$repo_root/templates/config.portable.toml"
 tmp_root=$(mktemp -d)
 trap 'rm -rf -- "$tmp_root"' EXIT
 
@@ -17,7 +16,6 @@ fail() {
 new_home() {
   local home=$1
   mkdir -p -- "$home"
-  cp -- "$template" "$home/config.toml"
 }
 
 assert_managed_links_absent() {

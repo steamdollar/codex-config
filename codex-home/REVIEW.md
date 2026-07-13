@@ -5,24 +5,23 @@ Apply this guide only to explicit review or design-review requests. For ordinary
 ## Interaction Mode
 
 Ask the user to choose an interaction mode first only for structural code changes or architecture redesigns:
-- **BIG CHANGE**: Run the four review stages, with at most four key issues per section.
+- **BIG CHANGE**: Cover every relevant area in the selected review route, with at most four key issues per area.
 - **SMALL CHANGE**: Ask one question at a time per section and keep the process concise.
 
 Number issues and label options with letters.
 
-## 4-Step Review
+## Review Routes
 
-1. **Architecture review**: Analyze component boundaries, coupling, data flow, and SPOFs.
-2. **Code quality review**: Check DRY violations, error handling, edge cases, and technical debt.
-3. **Test review**: Check coverage gaps, assertion strength, and untested error paths.
-4. **Performance review**: Check N+1 behavior, memory usage, caching opportunities, and high-complexity paths.
+- **Code change**: Review architecture, code quality, tests, and performance where relevant.
+- **Architecture or design**: Review boundaries, coupling, data flow, SPOFs, operational risk, and migration or rollback strategy.
+- **Instruction, policy, or configuration**: Review precedence and scope, ambiguity or conflicts, runtime compatibility and enforceability, and context or maintenance cost.
 
 ## Issue Format
 
 Report only the key issues found during the review or design discussion. By default, prioritize the top three issues by severity.
 
 - **Issue**: State the concrete problem with the file name and line number.
-- **Options**: Provide 2–3 alternatives, including "Do nothing". The recommended option is always Option A.
+- **Options**: Provide 2–3 realistic alternatives. Include "Do nothing" only when it is meaningful, and put a clearly recommended option first as Option A.
 - **Metrics**: Include implementation effort, risk, impact on other code, and maintenance burden.
 - **Recommendation**: Explain why Option A is recommended.
 - **Decision**: Ask the user to choose or approve an option.

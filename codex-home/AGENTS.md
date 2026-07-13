@@ -30,10 +30,6 @@ Priority order:
 - Before delegation or any change/build/fix task, read and follow `SUB_AGENTS.md`; the literal wording exemption above remains direct.
 - If the configured role or model cannot be verified, report `[DEGRADED]` and do not claim that model.
 
-# Environment
-
-- Assume WSL2.
-
 # Session
 
 - When context is high, propose a new session plus handoff at a clean task boundary.

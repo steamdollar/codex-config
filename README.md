@@ -7,14 +7,15 @@ symlinks; managed skills and runtime state stay local.
 ## Managed scope
 
 - Root guidance: `AGENTS.md`, `SUB_AGENTS.md`, `REVIEW.md`, `DOMAIN_RULES.md`
+- Machine configuration: `config.toml`
 - Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
 - Custom agents: `luna-reader.toml`, `terra-executor.toml`
 - Custom rule: `default.rules`
 - Four user-authored skills listed in `manifest.tsv`
 
-`config.toml` is not managed as a symlink. `templates/config.portable.toml`
-contains a secret-free portable reference; machine-local project trust and UI
-state remain in the live config.
+`config.toml` is managed as a symlink to the repository's machine profile. It
+contains the selected model, plugins, and local project trust entries. Review
+absolute project paths before using this profile on another machine.
 
 ## Quick setup on another machine
 
@@ -30,8 +31,9 @@ cd "${CODEX_HOME:-$HOME/.codex}/codex-config"
 ```
 
 `setup.sh` applies the versioned `manifest.tsv`: it creates symlinks for the
-four root Markdown guidance files and also installs the lifecycle hook, custom
-agent, rule, and skill links without replacing `.system` or runtime state.
+root guidance and machine configuration files and also installs the lifecycle
+hook, custom agent, rule, and skill links without replacing `.system` or
+runtime state.
 Existing identical content is backed up before replacement; drift or foreign
 symlinks stop setup.
 
@@ -41,8 +43,7 @@ To preview an existing machine without changing it:
 ./setup.sh --dry-run
 ```
 
-A missing or different live `config.toml` is reported but is never rewritten
-by setup. Use `templates/config.portable.toml` as the manual merge reference.
+A missing or different managed target is reported before setup changes it.
 
 ## Install
 
@@ -135,6 +136,6 @@ that point to this clone.
 ## Safety boundary
 
 The manifest intentionally excludes `.system`, plugin cache, credentials,
-sessions, memories, logs, SQLite/state databases, generated caches, and live
-`config.toml`. The installer refuses manifest paths outside the approved
-Codex-home mapping and refuses foreign symlinks.
+sessions, memories, logs, SQLite/state databases, and generated caches. The
+installer refuses manifest paths outside the approved Codex-home mapping and
+refuses foreign symlinks.
