@@ -85,7 +85,9 @@ The install prints its timestamped backup path. Keep that path for rollback.
   --codex-home "${CODEX_HOME:-$HOME/.codex}"
 ```
 
-Restart Codex after installing or changing hooks or skills so discovery is refreshed.
+After installing or changing hooks, open `/hooks` in Codex and review and trust
+the hook definition. Restart Codex after changing hooks or skills so discovery
+is refreshed.
 
 ## Context-budget warning
 

@@ -13,9 +13,9 @@ Goal: **Sol alone faces the user and owns decisions.** It executes directly or d
 ## Workflow
 
 1. Sol discovers; use Luna only when large input can become a small, explicit digest.
-2. Non-trivial implementation or policy/behavior changes require a Sol-owned plan, acceptance criteria, and approval. The `AGENTS.md` literal-wording exemption remains.
-3. Apply the delegation gate to each approved atomic step, then execute directly or delegate to Terra.
-4. Delegated work returns its evidence schema. Sol thin-checks every result, deep-reviews only on a trigger, and renews approval for plan, scope, or risk changes.
+2. Non-trivial implementation or policy/behavior changes require a Sol-owned plan and acceptance criteria. An explicit user request to implement or change something approves work within the stated scope; the `AGENTS.md` approval gate and literal-wording exemption still apply.
+3. Apply the delegation gate to each atomic step covered by that approval, then execute directly or delegate to Terra.
+4. Delegated work returns its evidence schema. Sol thin-checks every result, deep-reviews only on a trigger, and renews user approval only when scope, risk, or cost materially changes.
 
 ## Delegation Gate
 
@@ -28,9 +28,9 @@ Goal: **Sol alone faces the user and owns decisions.** It executes directly or d
 
 ## Model Routing and Fallback
 
-- Required: Sol = `gpt-5.6-sol` high; Terra = `gpt-5.6-terra` medium; Luna = `gpt-5.6-luna` low.
-- Spawn the configured type; if only a model selector exists, pin its slug.
-- Never guess or claim an unverified role/model. Report `[DEGRADED: {role} model pinning unavailable]` and apply the gate for Sol-direct fallback. Treat quota, rate-limit, model, and spawn failures the same; ask the user only for a material scope/risk/cost change.
+- Target routing: Sol = `gpt-5.6-sol` high; Terra = `gpt-5.6-terra` medium; Luna = `gpt-5.6-luna` low.
+- Use the configured agent type or pin its model slug only when the runtime exposes that selector. Verify the selected role/model from runtime-returned metadata; configuration files prove intent, not actual runtime selection.
+- If selection or attestation is unavailable, never claim the role/model. Report `[DEGRADED: {role} selection or attestation unavailable]` and apply the gate for Sol-direct fallback. Treat quota, rate-limit, model, and spawn failures the same; ask the user only for a material scope/risk/cost change.
 - Use `agy` only when `command -v agy` succeeds and the user explicitly approves cross-provider execution, for Luna unavailability, a valuable provider-diverse check, a huge independent batch, or required browser/Google integration. Send only the minimum required artifacts, never secrets or the full conversation. Run `agy models`, select the lowest-sufficient Flash model, then `agy --sandbox --print` with Luna's digest contract. Never use it as a routine co-default.
 - Report `[DEGRADED: Luna unavailable -> Antigravity/{actual model}]` or `[CROSS-CHECK: Antigravity/{actual model}]`; on failure, use the direct-fallback rule.
 - Depth is 1: Luna and Terra never spawn. Only one Terra writes to a repo at once; Luna is read-only.
@@ -40,4 +40,4 @@ Goal: **Sol alone faces the user and owns decisions.** It executes directly or d
 - **Thin, always:** verify status, changed-file/diff summary, test command/result, and conclusion-changing evidence only.
 - **Deep triggers:** API/contract, DB/migration, security/finance, cross-repo change, failed/flaky tests, plan deviation, broad diff, or unresolved unknowns. Do not reread or rerun without cause; mark unverifiable claims `[UNKNOWN: {file/interface} not confirmed]`.
 - Judge profitability/context hygiene practically, not as exact counterfactual tokens: `profitability = profitable | marginal | not profitable`; `context hygiene = cleaner | neutral | worse`.
-- Report `Sub-agent: none` when direct. When delegated: `spawned` (role + model + task) / `why` / `profitability` / `context hygiene` / `basis` / `deviations`.
+- Report sub-agent details only when one is spawned, delegation fails or degrades, or the user asks. When delegated: `spawned` (role + model + task) / `why` / `profitability` / `context hygiene` / `basis` / `deviations`.
