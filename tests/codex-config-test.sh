@@ -73,6 +73,14 @@ for selector in ("`reader`", "`advisor`", "`executor`"):
         raise SystemExit(f"SUB_AGENTS.md missing native selector {selector}")
 if 'fork_turns = "none"' not in sub_agents:
     raise SystemExit("SUB_AGENTS.md missing depth-isolated native delegation contract")
+for wait_contract in (
+    "`Wait timed out` means only that the child did not finish within that wait call",
+    "must never be reported as agent failure",
+    "Never call `interrupt_agent` solely because elapsed time or repeated wait calls seem long",
+    "Do not invent an implicit sub-agent deadline",
+):
+    if wait_contract not in sub_agents:
+        raise SystemExit(f"SUB_AGENTS.md missing wait/interrupt contract: {wait_contract}")
 PY
 }
 
