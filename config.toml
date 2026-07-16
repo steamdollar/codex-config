@@ -13,3 +13,6 @@ enabled = true
 
 [plugins."google-drive@openai-curated"]
 enabled = true
+
+[projects."/Users/chronica/work/clero"]
+trust_level = "trusted"
