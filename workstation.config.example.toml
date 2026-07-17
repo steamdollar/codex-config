@@ -1,9 +1,0 @@
-# Copy this file to $CODEX_HOME/workstation.config.toml and replace the paths
-# with projects that should be trusted on this machine.
-#
-# Select it with:
-#   codex --profile workstation
-#
-# Example:
-# [projects."/home/you/work/project"]
-# trust_level = "trusted"

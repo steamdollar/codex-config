@@ -30,6 +30,8 @@ skills/.system/
 models_cache.json
 installation_id
 version.json
+config.toml
+config.toml.lock
 
 # Editor and OS state
 .DS_Store

@@ -7,6 +7,7 @@ installer="$repo_root/scripts/codex-config.sh"
 args=(
   install
   --codex-home "${CODEX_HOME:-$HOME/.codex}"
+  --activate-hooks
   --apply
 )
 

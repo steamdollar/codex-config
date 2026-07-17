@@ -7,36 +7,30 @@ symlinks; managed skills and runtime state stay local.
 ## Managed scope
 
 - Root guidance: `AGENTS.md`, `SUB_AGENTS.md`, `REVIEW.md`, `DOMAIN_RULES.md`
-- Shared machine configuration: `config.toml`
+- Shared machine configuration: `config.shared.toml`; machine-local `config.toml`
 - Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
 - Custom-agent role bindings: `advisor.toml`, `luna-reader.toml`, `terra-executor.toml`
 - Attested reader fallback (legacy filename): `bin/luna-reader-worker`
 - Custom rule: `default.rules`
 - Four user-authored skills listed in `manifest.tsv`
 
-`config.toml` is managed as a symlink to the repository's shared profile. It
-contains settings that are portable across machines, such as the selected
-model, plugins, and service defaults. Do not put absolute project trust paths
-in this file.
+`config.shared.toml` contains portable settings such as the selected model,
+plugins, and service defaults. `config.toml` is ignored, remains the manifest
+symlink source, and is rebuilt from the shared file while preserving only its
+parsed `[projects]` subtree. This lets Codex persist trust decisions there
+automatically. Other machine-local keys are overwritten by synchronization.
 
-Project trust is machine-local. If you need to preserve trusted projects, put
-their absolute paths in a local profile next to `config.toml`, for example
-`$CODEX_HOME/workstation.config.toml`:
+Project trust is machine-local, for example:
 
 ```toml
 [projects."/home/you/work/project"]
 trust_level = "trusted"
 ```
 
-Run Codex with that overlay when needed:
-
-```bash
-codex --profile workstation
-```
-
-The profile file is intentionally not managed by this repository because its
-project paths differ by machine. Codex loads the base `config.toml` and then
-overlays the selected profile.
+Run `./scripts/sync-config.py` after changing the shared profile. Versioned
+Git post-merge and post-checkout hooks do this automatically once `setup.sh`
+has configured `core.hooksPath=.githooks`; setup refuses to replace a different
+existing hook path.
 
 Native custom agents use Codex's `MultiAgentV2` interface under the custom
 `agents` namespace. This exposes the `agent_type` selector that the reserved
@@ -61,8 +55,9 @@ cd "${CODEX_HOME:-$HOME/.codex}/codex-config"
 ./setup.sh
 ```
 
-`setup.sh` applies the versioned `manifest.tsv`: it creates symlinks for the
-root guidance and shared configuration files and also installs the lifecycle
+`setup.sh` first generates the local `config.toml`, then applies the versioned
+`manifest.tsv`: it creates symlinks for the root guidance and shared
+configuration files and also installs the lifecycle
 hook, custom agent, rule, and skill links without replacing `.system` or
 runtime state.
 Existing identical content is backed up before replacement; drift or foreign

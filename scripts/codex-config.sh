@@ -5,11 +5,12 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 repo_root=$(cd -- "$script_dir/.." && pwd -P)
 manifest="$repo_root/manifest.tsv"
 config_source="$repo_root/config.toml"
+config_sync="$repo_root/scripts/sync-config.py"
 
 usage() {
   printf '%s\n' \
     "Usage:" \
-    "  $0 install   [--codex-home PATH] [--backup-dir PATH] [--allow-drift] --dry-run|--apply" \
+    "  $0 install   [--codex-home PATH] [--backup-dir PATH] [--allow-drift] [--activate-hooks] --dry-run|--apply" \
     "  $0 verify    [--codex-home PATH]" \
     "  $0 uninstall [--codex-home PATH] [--restore-backup PATH] --dry-run|--apply"
 }
@@ -53,6 +54,7 @@ restore_backup=""
 execution_mode="dry-run"
 mode_explicit=false
 allow_drift=false
+activate_hooks=false
 
 while (($#)); do
   case "$1" in
@@ -85,6 +87,10 @@ while (($#)); do
       allow_drift=true
       shift
       ;;
+    --activate-hooks)
+      activate_hooks=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -96,6 +102,7 @@ while (($#)); do
 done
 
 [[ -f "$manifest" ]] || fail "manifest missing: $manifest"
+[[ -x "$config_sync" ]] || fail "config sync missing or not executable: $config_sync"
 codex_home=$(canonical_path "$codex_home")
 [[ "$codex_home" = /* && "$codex_home" != / ]] || fail "unsafe CODEX_HOME: $codex_home"
 
@@ -118,6 +125,12 @@ load_manifest() {
     [[ "$policy" == exact ]] || fail "invalid migration policy: $policy"
     source_abs="$repo_root/$source"
     if [[ "$kind" == file ]]; then
+      if [[ "$source" == config.toml && ! -e "$source_abs" && "$command_name" == install && "$execution_mode" == dry-run ]]; then
+        kinds+=("$kind")
+        sources+=("$source_abs")
+        targets+=("$target")
+        continue
+      fi
       [[ -f "$source_abs" && ! -L "$source_abs" ]] || fail "source file missing: $source_abs"
     else
       [[ -d "$source_abs" && ! -L "$source_abs" ]] || fail "source directory missing: $source_abs"
@@ -127,6 +140,30 @@ load_manifest() {
     targets+=("$target")
   done < "$manifest"
   ((${#targets[@]} > 0)) || fail "manifest contains no entries"
+}
+
+activate_git_hooks() {
+  local existing
+  existing=$(git -C "$repo_root" config --local --get core.hooksPath || true)
+  if [[ -n "$existing" && "$existing" != .githooks ]]; then
+    fail "refusing to replace existing core.hooksPath: $existing"
+  fi
+  if [[ "$execution_mode" == dry-run ]]; then
+    [[ -n "$existing" ]] && printf '%s\n' 'NOOP: core.hooksPath already .githooks' || printf '%s\n' 'SET core.hooksPath=.githooks'
+    return
+  fi
+  if [[ -z "$existing" ]]; then
+    git -C "$repo_root" config --local core.hooksPath .githooks
+    printf '%s\n' 'SET core.hooksPath=.githooks'
+  else
+    printf '%s\n' 'NOOP: core.hooksPath already .githooks'
+  fi
+}
+
+preflight_git_hooks() {
+  local existing
+  existing=$(git -C "$repo_root" config --local --get core.hooksPath || true)
+  [[ -z "$existing" || "$existing" == .githooks ]] || fail "refusing to replace existing core.hooksPath: $existing"
 }
 
 same_link() {
@@ -153,6 +190,10 @@ preflight_install() {
 
     if same_link "$target" "$source"; then
       printf 'OK link %s -> %s\n' "$target" "$source"
+      continue
+    fi
+    if [[ "$rel" == config.toml && ! -e "$source" ]]; then
+      printf 'CONFIG source will be generated: %s\n' "$source"
       continue
     fi
     [[ ! -L "$target" ]] || fail "foreign symlink: $target -> $(readlink "$target")"
@@ -388,6 +429,16 @@ uninstall_apply() {
   done
 }
 
+if [[ "$command_name" == install && "$activate_hooks" == true ]]; then
+  preflight_git_hooks
+fi
+
+if [[ "$command_name" == install ]]; then
+  sync_args=(--fallback-config "$codex_home/config.toml")
+  [[ "$execution_mode" == apply ]] || sync_args=(--dry-run "${sync_args[@]}")
+  "$config_sync" "${sync_args[@]}"
+fi
+
 load_manifest
 
 case "$command_name" in
@@ -400,13 +451,16 @@ case "$command_name" in
     else
       printf '%s\n' 'DRY-RUN: no changes made'
     fi
+    [[ "$activate_hooks" == false ]] || activate_git_hooks
     ;;
   verify)
+    [[ "$activate_hooks" == false ]] || fail "verify does not accept --activate-hooks"
     [[ "$mode_explicit" == false ]] || fail "verify does not accept --dry-run or --apply"
     [[ -z "$backup_dir" && -z "$restore_backup" && "$allow_drift" == false ]] || fail "verify accepts only --codex-home"
     verify_install true
     ;;
   uninstall)
+    [[ "$activate_hooks" == false ]] || fail "uninstall does not accept --activate-hooks"
     [[ -z "$backup_dir" ]] || fail "uninstall does not accept --backup-dir"
     [[ "$allow_drift" == false ]] || fail "uninstall does not accept --allow-drift"
     uninstall_preflight

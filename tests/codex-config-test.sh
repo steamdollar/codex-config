@@ -20,16 +20,16 @@ import sys
 import tomllib
 
 root = Path(sys.argv[1])
-with (root / "config.toml").open("rb") as f:
+with (root / "config.shared.toml").open("rb") as f:
     config = tomllib.load(f)
 
 expected_config = {
-    "model": "gpt-5.6-terra",
-    "model_reasoning_effort": "medium",
+    "model": "gpt-5.6-sol",
+    "model_reasoning_effort": "high",
 }
 for key, value in expected_config.items():
     if config.get(key) != value:
-        raise SystemExit(f"config.toml {key}: expected {value!r}, got {config.get(key)!r}")
+        raise SystemExit(f"config.shared.toml {key}: expected {value!r}, got {config.get(key)!r}")
 
 expected_roles = {
     "luna-reader.toml": {
@@ -81,6 +81,14 @@ for wait_contract in (
 ):
     if wait_contract not in sub_agents:
         raise SystemExit(f"SUB_AGENTS.md missing wait/interrupt contract: {wait_contract}")
+for attestation_contract in (
+    "wait for the child to complete, locate its trace by `parent_thread_id` and canonical `agent_path`",
+    "extract only those attestation records before reporting degradation",
+    "Treat `agent_nickname` as a runtime label, not configured identity",
+    "Report the attested role, model, and canonical task path",
+):
+    if attestation_contract not in sub_agents:
+        raise SystemExit(f"SUB_AGENTS.md missing attestation contract: {attestation_contract}")
 PY
 }
 
@@ -210,10 +218,83 @@ test_rollback_after_link_failure() {
 test_role_configuration
 
 test_shared_config_has_no_machine_project_paths() {
-  ! rg -q '^\[projects\.' "$repo_root/config.toml" || fail "shared config contains machine-local project trust"
+  ! rg -q '^\[projects\.' "$repo_root/config.shared.toml" || fail "shared config contains machine-local project trust"
+}
+
+test_config_sync() {
+  local work="$tmp_root/sync-repo"
+  cp -a -- "$repo_root" "$work"
+  rm -f -- "$work/config.toml"
+  "$work/scripts/sync-config.py" --dry-run >/dev/null
+  [[ ! -e "$work/config.toml" ]] || fail "sync dry-run wrote config"
+  "$work/scripts/sync-config.py" >/dev/null
+  [[ -f "$work/config.toml" ]] || fail "sync did not generate config"
+  cp "$work/config.toml" "$work/generated"
+  "$work/scripts/sync-config.py" >/dev/null
+  cmp -s "$work/config.toml" "$work/generated" || fail "sync is not idempotent"
+  printf '\n[projects."/tmp/한글\\\\path"]\ntrust_level = "trusted"\n' >> "$work/config.toml"
+  "$work/scripts/sync-config.py" >/dev/null
+  python3 - "$work/config.toml" <<'PY'
+import sys
+import tomllib
+with open(sys.argv[1], "rb") as f:
+    projects = tomllib.load(f)["projects"]
+assert projects["/tmp/한글\\path"]["trust_level"] == "trusted"
+PY
+  printf '\n[projects."/bad"]\nextra = "no"\n' >> "$work/config.toml"
+  cp "$work/config.toml" "$work/invalid-local"
+  if "$work/scripts/sync-config.py" >/dev/null 2>&1; then fail "invalid project schema accepted"; fi
+  cmp -s "$work/config.toml" "$work/invalid-local" || fail "invalid local config was partially modified"
+  cp "$work/generated" "$work/config.toml"
+  cp "$work/config.toml" "$work/before-shared-error"
+  printf 'not = [\n' > "$work/config.shared.toml"
+  if "$work/scripts/sync-config.py" >/dev/null 2>&1; then fail "malformed shared config accepted"; fi
+  cmp -s "$work/config.toml" "$work/before-shared-error" || fail "malformed shared config partially modified local config"
+  printf '\n[projects."/bad"]\nextra = "no"\n' > "$work/config.shared.toml"
+  if "$work/scripts/sync-config.py" >/dev/null 2>&1; then fail "shared projects accepted"; fi
+  cmp -s "$work/config.toml" "$work/before-shared-error" || fail "shared projects partially modified local config"
+}
+
+test_fresh_config_fallback() {
+  local work="$tmp_root/fallback-repo" home="$tmp_root/fallback-home" backup="$tmp_root/fallback-backup"
+  cp -a -- "$repo_root" "$work"
+  rm -f -- "$work/config.toml"
+  mkdir -p -- "$home"
+  cp "$work/config.shared.toml" "$home/config.toml"
+  printf '\n[projects."/tmp/기존\\\\path"]\ntrust_level = "trusted"\n' >> "$home/config.toml"
+  "$work/scripts/codex-config.sh" install --codex-home "$home" --backup-dir "$backup" --apply >/dev/null
+  [[ -L "$home/config.toml" && "$(readlink -- "$home/config.toml")" == "$work/config.toml" ]] || fail "fresh install did not link generated config"
+  python3 - "$work/config.toml" <<'PY'
+import sys
+import tomllib
+with open(sys.argv[1], "rb") as f:
+    config = tomllib.load(f)
+assert config["projects"]["/tmp/기존\\path"]["trust_level"] == "trusted"
+PY
+
+  local invalid_work="$tmp_root/fallback-invalid"
+  cp -a -- "$repo_root" "$invalid_work"
+  rm -f -- "$invalid_work/config.toml"
+  printf '[projects."/bad"]\nextra = "no"\n' > "$tmp_root/invalid-fallback.toml"
+  if "$invalid_work/scripts/sync-config.py" --fallback-config "$tmp_root/invalid-fallback.toml" >/dev/null 2>&1; then fail "invalid fallback schema accepted"; fi
+  [[ ! -e "$invalid_work/config.toml" ]] || fail "invalid fallback partially wrote local config"
+}
+
+test_hook_activation() {
+  local work="$tmp_root/hook-repo" foreign="$tmp_root/foreign-hook-repo"
+  cp -a -- "$repo_root" "$work"
+  [[ -x "$work/.githooks/post-merge" && -x "$work/.githooks/post-checkout" ]] || fail "versioned sync hooks are not executable"
+  "$work/setup.sh" --codex-home "$tmp_root/hook-home" --apply >/dev/null
+  [[ "$(git -C "$work" config --local --get core.hooksPath)" == .githooks ]] || fail "setup did not activate versioned hooks"
+  cp -a -- "$repo_root" "$foreign"
+  git -C "$foreign" config core.hooksPath .foreign-hooks
+  if "$foreign/setup.sh" --codex-home "$tmp_root/foreign-hook-home" --dry-run >/dev/null 2>&1; then fail "foreign hooksPath accepted"; fi
 }
 
 test_shared_config_has_no_machine_project_paths
+test_config_sync
+test_fresh_config_fallback
+test_hook_activation
 test_empty_install_verify_uninstall
 test_backup_restore
 test_incremental_restore_preserves_unchanged_links
