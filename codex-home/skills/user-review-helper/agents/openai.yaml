@@ -1,4 +1,4 @@
 interface:
-  display_name: "Review Reading Path"
-  short_description: "Order nontrivial changed files for review"
-  default_prompt: "Use $user-review-helper to list the nontrivial changed files in review order."
+  display_name: "Review Brief"
+  short_description: "Guide interactive, quick, or exported code review reading"
+  default_prompt: "Use $user-review-helper to walk me through these changes in a review session."
