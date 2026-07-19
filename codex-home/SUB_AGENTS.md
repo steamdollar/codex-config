@@ -13,19 +13,23 @@ Goal: **The primary agent alone faces the user and owns decisions.** It executes
 
 ## Workflow
 
-1. The primary agent discovers and owns the decision. Delegate to `reader` when large input can become a small, explicit digest and the delegation gate is satisfied.
+1. The primary agent discovers and owns the decision. At the mandatory delegation checkpoint, it records a concise direct-or-delegate basis and applies the benefit gate below.
 2. Non-trivial implementation or policy/behavior changes require a primary-owned plan and acceptance criteria. An explicit user request to implement or change something approves work within the stated scope; the `AGENTS.md` approval gate and literal-wording exemption still apply.
-3. Apply the advisor escalation gate before committing to a high-judgment diagnosis, design, or review. The advisor recommends; the primary decides.
+3. Use `advisor` only when unresolved high-judgment uncertainty would materially benefit from an independent recommendation. The advisor recommends; the primary decides.
 4. Apply the delegation gate to each atomic approved step, then execute directly or delegate to `executor`.
 5. Delegated work returns its evidence schema. The primary thin-checks every result, deep-reviews only on a trigger, and renews user approval only when scope, risk, or cost materially changes.
 
 ## Delegation and advisor gates
 
 - The primary applies these gates; the user does not need to request a sub-agent explicitly. Ask the user only when routing materially changes scope, risk, or cost.
-- Context hygiene alone is insufficient. Delegate by default when at least two material benefits apply—bulky-output isolation, independent parallelism, workload leverage, or validation asymmetry—and the role-specific criteria below are met.
-- Prefer primary-direct when work is small, sequential, context-heavy, or no larger than handoff plus acceptance cost.
+- The checkpoint is mandatory before every non-trivial task and each approved atomic step; spawning is not. Record an internal one-line basis such as `direct: sequential and context-heavy` or `delegate: bulky input -> bounded reader digest`.
+- Task category alone—including contract, DB, security, finance, migration, or external-system work—never forces a spawn. Delegate when one strong benefit or two moderate benefits apply and the role-specific criteria below are met.
+- **Strong benefits:** clean independent parallelism; large or repetitive input that can become a small bounded digest; or an independent judgment likely to change a materially uncertain or high-risk decision.
+- **Moderate benefits:** workload leverage greater than handoff plus acceptance cost; context isolation; or validation asymmetry. Context hygiene alone remains insufficient.
+- Prefer primary-direct when the threshold is not met, or when work is small, sequential, context-heavy, already resolved by evidence, or no larger than handoff plus acceptance cost.
 - Use `reader` only when the input is large, output has a small schema, and spot-checking is cheap: bulk sweeps, long-log/comment classification, repetitive comparison, or extraction. Exclude small reads, ambiguous design, root-cause diagnosis, and final security/finance judgment.
-- Escalate to `advisor` immediately for DB/schema/state-machine/API-contract changes, destructive or external-system actions, security/finance judgment, KPI/query semantics, architecture or source-of-truth decisions, and migrations or rollback design. Otherwise escalate when at least two apply: multiple repos or layers, multiple plausible root causes, a failed targeted attempt, cross-component E2E/contracts, or a materially ambiguous plan. Do not use it for a small decision already resolved by local evidence.
+- Use `advisor` only when a second opinion can change an unresolved decision: competing plausible diagnoses, a failed targeted attempt, materially ambiguous architecture or rollback choices, or high-stakes judgment with genuine uncertainty. Risk raises the value of review but is not a trigger by itself. Do not use `advisor` for routine authorized commit/push, scoped external actions, or decisions already resolved by local evidence.
+- Use `executor` only for an approved atomic implementation with clean ownership when the independent workload benefit exceeds handoff and acceptance cost; otherwise execute directly.
 - Executor handoffs include objective, allowed scope/files, acceptance criteria, test, constraints, and unknowns. Executors return only `status / changed files / tests / deviations / unknowns`; store bulky logs as artifacts.
 - Give agents only relevant paths, contracts, and artifacts; never the full conversation or a full-repo reread requirement.
 
