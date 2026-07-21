@@ -304,7 +304,8 @@ PY
 test_hook_activation() {
   local work="$tmp_root/hook-repo" foreign="$tmp_root/foreign-hook-repo"
   cp -a -- "$repo_root" "$work"
-  [[ -x "$work/.githooks/post-merge" && -x "$work/.githooks/post-checkout" ]] || fail "versioned sync hooks are not executable"
+  [[ -x "$work/.githooks/post-merge" && -x "$work/.githooks/post-checkout" && -x "$work/.githooks/pre-push" ]] || fail "versioned hooks are not executable"
+  grep -Fq 'scripts/check-codex-config.sh' "$work/.githooks/pre-push" || fail "pre-push hook does not delegate to shared checks"
   "$work/setup.sh" --codex-home "$tmp_root/hook-home" --apply >/dev/null
   [[ "$(git -C "$work" config --local --get core.hooksPath)" == .githooks ]] || fail "setup did not activate versioned hooks"
   cp -a -- "$repo_root" "$foreign"

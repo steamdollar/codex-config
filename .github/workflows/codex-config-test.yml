@@ -36,24 +36,5 @@ jobs:
             sudo apt-get install --yes ripgrep
           fi
 
-      - name: Validate source files
-        run: |
-          for script in \
-            setup.sh \
-            scripts/codex-config.sh \
-            tests/codex-config-test.sh \
-            .githooks/post-checkout \
-            .githooks/post-merge
-          do
-            bash -n "$script"
-          done
-          python -m py_compile \
-            scripts/sync-config.py \
-            codex-home/hooks/context-budget.py
-          python -m json.tool codex-home/hooks.json >/dev/null
-
-      - name: Test context-budget hook
-        run: python tests/context-budget-hook-test.py
-
-      - name: Test portable config integration
-        run: bash tests/codex-config-test.sh
+      - name: Run portable config checks
+        run: bash scripts/check-codex-config.sh

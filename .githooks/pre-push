@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+repo_root=$(git rev-parse --show-toplevel)
+printf 'Running portable Codex config checks before push...\n' >&2
+exec "$repo_root/scripts/check-codex-config.sh"

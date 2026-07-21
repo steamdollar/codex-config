@@ -39,6 +39,11 @@ Git post-merge and post-checkout hooks do this automatically once `setup.sh`
 has configured `core.hooksPath=.githooks`; setup refuses to replace a different
 existing hook path.
 
+The same versioned hook directory includes `pre-push`, which runs
+`scripts/check-codex-config.sh` before every push. That shared runner is also
+used by GitHub Actions, so local and remote checks cannot drift. A failed check
+blocks the push; `git push --no-verify` is the explicit emergency bypass.
+
 Native custom agents use Codex's `MultiAgentV2` interface under the custom
 `agents` namespace. This exposes the `agent_type` selector that the reserved
 `collaboration` namespace hides. Runtime roles are `reader`, `advisor`, and
