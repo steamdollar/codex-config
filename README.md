@@ -16,9 +16,11 @@ symlinks; managed skills and runtime state stay local.
 
 `config.shared.toml` contains portable settings such as the selected model,
 plugins, and service defaults. `config.toml` is ignored, remains the manifest
-symlink source, and is rebuilt from the shared file while preserving only its
-parsed `[projects]` subtree. This lets Codex persist trust decisions there
-automatically. Other machine-local keys are overwritten by synchronization.
+symlink source, and is rebuilt from the shared file while preserving its parsed
+`[projects]` and `[hooks.state]` subtrees. This lets Codex persist project and
+hook trust decisions automatically. Other machine-local keys are overwritten
+by synchronization; malformed trust state makes synchronization fail before
+the local file is changed.
 
 Project trust is machine-local, for example:
 
@@ -26,6 +28,11 @@ Project trust is machine-local, for example:
 [projects."/home/you/work/project"]
 trust_level = "trusted"
 ```
+
+Hook trust is also machine-local and is written by Codex after review through
+`/hooks` in the Codex CLI TUI; the IDE chat does not expose this command. Do not
+copy or hand-author `trusted_hash` values; synchronization only preserves values
+already recorded by Codex for the exact hook definition.
 
 Run `./scripts/sync-config.py` after changing the shared profile. Versioned
 Git post-merge and post-checkout hooks do this automatically once `setup.sh`

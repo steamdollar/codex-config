@@ -36,6 +36,9 @@ def read_shared(path: Path) -> bytes:
     shared = parse_toml(raw, path)
     if "projects" in shared:
         fail("config.shared.toml must not contain [projects]")
+    hooks = shared.get("hooks")
+    if isinstance(hooks, dict) and "state" in hooks:
+        fail("config.shared.toml must not contain [hooks.state]")
     return raw
 
 def validate_projects(value: object) -> dict[str, dict[str, str]]:
@@ -52,15 +55,44 @@ def validate_projects(value: object) -> dict[str, dict[str, str]]:
         projects[path] = {"trust_level": settings["trust_level"]}
     return projects
 
+def validate_hook_state(value: object) -> dict[str, dict[str, str]]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        fail("unexpected [hooks.state] schema: expected a table")
+    hook_state = {}
+    for hook_id, settings in value.items():
+        if not isinstance(hook_id, str) or not isinstance(settings, dict):
+            fail("unexpected [hooks.state] schema: expected hook tables")
+        if set(settings) != {"trusted_hash"} or not isinstance(settings["trusted_hash"], str):
+            fail("unexpected [hooks.state] schema: expected only string trusted_hash")
+        hook_state[hook_id] = {"trusted_hash": settings["trusted_hash"]}
+    return hook_state
+
+def machine_local_state(config: dict) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
+    hooks = config.get("hooks")
+    if hooks is not None and not isinstance(hooks, dict):
+        fail("unexpected [hooks] schema: expected a table")
+    hook_state = None if hooks is None else hooks.get("state")
+    return validate_projects(config.get("projects")), validate_hook_state(hook_state)
+
 def quote(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
-def render(shared: bytes, projects: dict[str, dict[str, str]]) -> bytes:
+def render(
+    shared: bytes,
+    projects: dict[str, dict[str, str]],
+    hook_state: dict[str, dict[str, str]],
+) -> bytes:
     result = shared.rstrip(b"\n") + b"\n"
     if projects:
         result += b"\n"
         for path in sorted(projects):
             result += f"[projects.{quote(path)}]\ntrust_level = {quote(projects[path]['trust_level'])}\n".encode()
+    if hook_state:
+        result += b"\n"
+        for hook_id in sorted(hook_state):
+            result += f"[hooks.state.{quote(hook_id)}]\ntrusted_hash = {quote(hook_state[hook_id]['trusted_hash'])}\n".encode()
     return result
 
 def main() -> int:
@@ -71,15 +103,15 @@ def main() -> int:
     args = parser.parse_args()
     root = args.repo_root.resolve()
     shared_path, local_path = root / "config.shared.toml", root / "config.toml"
-    def projects_for_current_source() -> dict[str, dict[str, str]]:
+    def machine_state_for_current_source() -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
         if local_path.exists():
-            return validate_projects(read_toml(local_path).get("projects"))
+            return machine_local_state(read_toml(local_path))
         if args.fallback_config is not None and args.fallback_config.exists():
-            return validate_projects(read_toml(args.fallback_config).get("projects"))
-        return {}
+            return machine_local_state(read_toml(args.fallback_config))
+        return {}, {}
 
     shared_bytes = read_shared(shared_path)
-    desired = render(shared_bytes, projects_for_current_source())
+    desired = render(shared_bytes, *machine_state_for_current_source())
     if args.dry_run:
         print("DRY-RUN: config.toml would be updated" if not local_path.exists() or local_path.read_bytes() != desired else "NOOP: config.toml is synchronized")
         return 0
@@ -87,7 +119,7 @@ def main() -> int:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         # Re-read and validate the precise shared bytes used for the write.
         shared_bytes = read_shared(shared_path)
-        desired = render(shared_bytes, projects_for_current_source())
+        desired = render(shared_bytes, *machine_state_for_current_source())
         if local_path.exists() and local_path.read_bytes() == desired:
             print("NOOP: config.toml is synchronized")
             return 0

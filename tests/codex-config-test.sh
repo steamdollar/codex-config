@@ -219,6 +219,7 @@ test_role_configuration
 
 test_shared_config_has_no_machine_project_paths() {
   ! rg -q '^\[projects\.' "$repo_root/config.shared.toml" || fail "shared config contains machine-local project trust"
+  ! rg -q '^\[hooks\.state' "$repo_root/config.shared.toml" || fail "shared config contains machine-local hook trust"
 }
 
 test_config_sync() {
@@ -233,18 +234,29 @@ test_config_sync() {
   "$work/scripts/sync-config.py" >/dev/null
   cmp -s "$work/config.toml" "$work/generated" || fail "sync is not idempotent"
   printf '\n[projects."/tmp/한글\\\\path"]\ntrust_level = "trusted"\n' >> "$work/config.toml"
+  printf '\n[hooks.state."/tmp/hooks.json:stop:0:0"]\ntrusted_hash = "sha256:test-hook-hash"\n' >> "$work/config.toml"
   "$work/scripts/sync-config.py" >/dev/null
   python3 - "$work/config.toml" <<'PY'
 import sys
 import tomllib
 with open(sys.argv[1], "rb") as f:
-    projects = tomllib.load(f)["projects"]
+    config = tomllib.load(f)
+projects = config["projects"]
 assert projects["/tmp/한글\\path"]["trust_level"] == "trusted"
+assert config["hooks"]["state"]["/tmp/hooks.json:stop:0:0"]["trusted_hash"] == "sha256:test-hook-hash"
 PY
+  cp "$work/config.toml" "$work/preserved-machine-state"
+  "$work/scripts/sync-config.py" >/dev/null
+  cmp -s "$work/config.toml" "$work/preserved-machine-state" || fail "machine-local state sync is not idempotent"
   printf '\n[projects."/bad"]\nextra = "no"\n' >> "$work/config.toml"
   cp "$work/config.toml" "$work/invalid-local"
   if "$work/scripts/sync-config.py" >/dev/null 2>&1; then fail "invalid project schema accepted"; fi
   cmp -s "$work/config.toml" "$work/invalid-local" || fail "invalid local config was partially modified"
+  cp "$work/generated" "$work/config.toml"
+  printf '\n[hooks.state."/bad/hooks.json:stop:0:0"]\nextra = "no"\n' >> "$work/config.toml"
+  cp "$work/config.toml" "$work/invalid-hook-state"
+  if "$work/scripts/sync-config.py" >/dev/null 2>&1; then fail "invalid hook state schema accepted"; fi
+  cmp -s "$work/config.toml" "$work/invalid-hook-state" || fail "invalid hook state partially modified local config"
   cp "$work/generated" "$work/config.toml"
   cp "$work/config.toml" "$work/before-shared-error"
   printf 'not = [\n' > "$work/config.shared.toml"
@@ -253,6 +265,10 @@ PY
   printf '\n[projects."/bad"]\nextra = "no"\n' > "$work/config.shared.toml"
   if "$work/scripts/sync-config.py" >/dev/null 2>&1; then fail "shared projects accepted"; fi
   cmp -s "$work/config.toml" "$work/before-shared-error" || fail "shared projects partially modified local config"
+  cp "$repo_root/config.shared.toml" "$work/config.shared.toml"
+  printf '\n[hooks.state."/shared/hooks.json:stop:0:0"]\ntrusted_hash = "sha256:shared"\n' >> "$work/config.shared.toml"
+  if "$work/scripts/sync-config.py" >/dev/null 2>&1; then fail "shared hook state accepted"; fi
+  cmp -s "$work/config.toml" "$work/before-shared-error" || fail "shared hook state partially modified local config"
 }
 
 test_fresh_config_fallback() {
@@ -262,6 +278,7 @@ test_fresh_config_fallback() {
   mkdir -p -- "$home"
   cp "$work/config.shared.toml" "$home/config.toml"
   printf '\n[projects."/tmp/기존\\\\path"]\ntrust_level = "trusted"\n' >> "$home/config.toml"
+  printf '\n[hooks.state."/fallback/hooks.json:stop:0:0"]\ntrusted_hash = "sha256:fallback-hook-hash"\n' >> "$home/config.toml"
   "$work/scripts/codex-config.sh" install --codex-home "$home" --backup-dir "$backup" --apply >/dev/null
   [[ -L "$home/config.toml" && "$(readlink -- "$home/config.toml")" == "$work/config.toml" ]] || fail "fresh install did not link generated config"
   python3 - "$work/config.toml" <<'PY'
@@ -270,6 +287,7 @@ import tomllib
 with open(sys.argv[1], "rb") as f:
     config = tomllib.load(f)
 assert config["projects"]["/tmp/기존\\path"]["trust_level"] == "trusted"
+assert config["hooks"]["state"]["/fallback/hooks.json:stop:0:0"]["trusted_hash"] == "sha256:fallback-hook-hash"
 PY
 
   local invalid_work="$tmp_root/fallback-invalid"
@@ -278,6 +296,9 @@ PY
   printf '[projects."/bad"]\nextra = "no"\n' > "$tmp_root/invalid-fallback.toml"
   if "$invalid_work/scripts/sync-config.py" --fallback-config "$tmp_root/invalid-fallback.toml" >/dev/null 2>&1; then fail "invalid fallback schema accepted"; fi
   [[ ! -e "$invalid_work/config.toml" ]] || fail "invalid fallback partially wrote local config"
+  printf '[hooks.state."/bad/hooks.json:stop:0:0"]\nextra = "no"\n' > "$tmp_root/invalid-hook-fallback.toml"
+  if "$invalid_work/scripts/sync-config.py" --fallback-config "$tmp_root/invalid-hook-fallback.toml" >/dev/null 2>&1; then fail "invalid hook fallback schema accepted"; fi
+  [[ ! -e "$invalid_work/config.toml" ]] || fail "invalid hook fallback partially wrote local config"
 }
 
 test_hook_activation() {
