@@ -1,0 +1,59 @@
+name: Codex config tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codex-config-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: codex-config-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test tools
+        run: |
+          if ! command -v rg >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install --yes ripgrep
+          fi
+
+      - name: Validate source files
+        run: |
+          for script in \
+            setup.sh \
+            scripts/codex-config.sh \
+            tests/codex-config-test.sh \
+            .githooks/post-checkout \
+            .githooks/post-merge
+          do
+            bash -n "$script"
+          done
+          python -m py_compile \
+            scripts/sync-config.py \
+            codex-home/hooks/context-budget.py
+          python -m json.tool codex-home/hooks.json >/dev/null
+
+      - name: Test context-budget hook
+        run: python tests/context-budget-hook-test.py
+
+      - name: Test portable config integration
+        run: bash tests/codex-config-test.sh
