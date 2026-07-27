@@ -15,9 +15,10 @@ Goal: **The primary agent alone faces the user and owns decisions.** It executes
 
 1. The primary agent discovers and owns the decision. At the mandatory delegation checkpoint, it records a concise direct-or-delegate basis and applies the benefit gate below.
 2. Non-trivial implementation or policy/behavior changes require a primary-owned plan and acceptance criteria. An explicit user request to implement or change something approves work within the stated scope; the `AGENTS.md` approval gate and literal-wording exemption still apply.
-3. Use `advisor` only when unresolved high-judgment uncertainty would materially benefit from an independent recommendation. The advisor recommends; the primary decides.
-4. Apply the delegation gate to each atomic approved step, then execute directly or delegate to `executor`.
-5. Delegated work returns its evidence schema. The primary thin-checks every result, deep-reviews only on a trigger, and renews user approval only when scope, risk, or cost materially changes.
+3. Use `advisor` before implementation only when unresolved high-judgment uncertainty would materially benefit from an independent recommendation. The advisor recommends; the primary decides.
+4. Apply the delegation gate to each atomic approved step, then execute directly or delegate to `executor`. Continue through the approved plan without treating step boundaries as user approval gates.
+5. After all scoped steps, use one initial task-final `advisor` acceptance review for non-trivial behavior or policy changes. Small, literal, or mechanically verifiable changes remain primary-direct.
+6. Delegated work returns its evidence schema. The primary thin-checks every result, deep-reviews only on a trigger, and renews user approval only when scope, risk, or cost materially changes.
 
 ## Delegation and advisor gates
 
@@ -28,7 +29,11 @@ Goal: **The primary agent alone faces the user and owns decisions.** It executes
 - **Moderate benefits:** workload leverage greater than handoff plus acceptance cost; context isolation; or validation asymmetry. Context hygiene alone remains insufficient.
 - Prefer primary-direct when the threshold is not met, or when work is small, sequential, context-heavy, already resolved by evidence, or no larger than handoff plus acceptance cost.
 - Use `reader` only when the input is large, output has a small schema, and spot-checking is cheap: bulk sweeps, long-log/comment classification, repetitive comparison, or extraction. Exclude small reads, ambiguous design, root-cause diagnosis, and final security/finance judgment.
-- Use `advisor` only when a second opinion can change an unresolved decision: competing plausible diagnoses, a failed targeted attempt, materially ambiguous architecture or rollback choices, or high-stakes judgment with genuine uncertainty. Risk raises the value of review but is not a trigger by itself. Do not use `advisor` for routine authorized commit/push, scoped external actions, or decisions already resolved by local evidence.
+- Use advisory mode only when a second opinion can change an unresolved pre-implementation decision: competing plausible diagnoses, a failed targeted attempt, materially ambiguous architecture or rollback choices, or high-stakes judgment with genuine uncertainty. Risk raises the value of review but is not a trigger by itself.
+- For non-trivial implementation, default to one acceptance-review advisor after the approved task scope is implemented and targeted tests finish. Review at the task boundary, not after every step. Skip it when the change is literal, routine, or no larger than the review handoff and acceptance cost.
+- The primary gives the acceptance reviewer a bounded packet: objective and acceptance criteria; behavior/data-flow summary; diff base and changed files; tests and results; risk focus and invariants; excluded or unrelated dirty files; and the required findings schema. The reviewer verifies the actual diff, stays read-only, and returns only blocking/non-blocking findings with severity and `file:line`, test gaps, residual risks, or `LGTM`.
+- Do not combine pre-implementation advisory and post-implementation acceptance review unless independent judgments at both boundaries are justified by material uncertainty or high risk. Re-review only when fixing a blocking finding materially changes the contract or behavior, or the original finding cannot otherwise be closed by primary evidence.
+- Do not use pre-implementation advisory mode for routine authorized commit/push, scoped external actions, or decisions already resolved by local evidence. This does not replace the task-final acceptance-review rule above.
 - Use `executor` only for an approved atomic implementation with clean ownership when the independent workload benefit exceeds handoff and acceptance cost; otherwise execute directly.
 - Executor handoffs include objective, allowed scope/files, acceptance criteria, test, constraints, and unknowns. Executors return only `status / changed files / tests / deviations / unknowns`; store bulky logs as artifacts.
 - Give agents only relevant paths, contracts, and artifacts; never the full conversation or a full-repo reread requirement.
