@@ -54,7 +54,7 @@ class ContextBudgetHookTest(unittest.TestCase):
             hook_input
             if hook_input is not None
             else {
-                "hook_event_name": "Stop",
+                "hook_event_name": "UserPromptSubmit",
                 "session_id": session_id,
                 "transcript_path": str(self.transcript),
             }
@@ -77,6 +77,13 @@ class ContextBudgetHookTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "")
 
+    def additional_context(self, result: subprocess.CompletedProcess[str]) -> str:
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        hook_output = output["hookSpecificOutput"]
+        self.assertEqual(hook_output["hookEventName"], "UserPromptSubmit")
+        return hook_output["additionalContext"]
+
     def test_below_threshold_ignores_cumulative_total(self) -> None:
         self.write_events(token_event(449, 1000))
         self.assert_silent(self.run_hook())
@@ -84,20 +91,18 @@ class ContextBudgetHookTest(unittest.TestCase):
     def test_soft_then_hard_each_warn_once(self) -> None:
         self.write_events(token_event(450, 1000))
         soft = self.run_hook()
-        self.assertEqual(soft.returncode, 0, soft.stderr)
-        self.assertIn("[Context budget soft]", json.loads(soft.stdout)["systemMessage"])
-        self.assertTrue(json.loads(soft.stdout)["continue"])
+        self.assertIn("[Context budget soft]", self.additional_context(soft))
         self.assert_silent(self.run_hook())
 
         self.write_events(token_event(600, 1000))
         hard = self.run_hook()
-        self.assertIn("[Context budget hard]", json.loads(hard.stdout)["systemMessage"])
+        self.assertIn("[Context budget hard]", self.additional_context(hard))
         self.assert_silent(self.run_hook())
 
     def test_first_hard_crossing_consumes_soft(self) -> None:
         self.write_events(token_event(700, 1000))
         hard = self.run_hook("hard-first")
-        self.assertIn("[Context budget hard]", json.loads(hard.stdout)["systemMessage"])
+        self.assertIn("[Context budget hard]", self.additional_context(hard))
 
         self.write_events(token_event(500, 1000))
         self.assert_silent(self.run_hook("hard-first"))
@@ -111,7 +116,7 @@ class ContextBudgetHookTest(unittest.TestCase):
         self.assert_silent(self.run_hook("absolute-below", env=override))
         self.write_events(token_event(150, 1000))
         result = self.run_hook("absolute-soft", env=override)
-        self.assertIn("150 / 1,000", json.loads(result.stdout)["systemMessage"])
+        self.assertIn("150 / 1,000", self.additional_context(result))
 
     def test_newest_valid_token_event_wins(self) -> None:
         self.write_events(
@@ -125,7 +130,8 @@ class ContextBudgetHookTest(unittest.TestCase):
         self.write_events(token_event(900, 1000))
         cases = [
             {},
-            {"hook_event_name": "Stop", "session_id": "x", "transcript_path": None},
+            {"hook_event_name": "UserPromptSubmit", "session_id": "x", "transcript_path": None},
+            {"hook_event_name": "Stop", "session_id": "x", "transcript_path": str(self.transcript)},
             {"hook_event_name": "PostToolUse", "session_id": "x", "transcript_path": str(self.transcript)},
         ]
         for index, hook_input in enumerate(cases):

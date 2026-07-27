@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit one-shot, non-blocking Codex context-budget warnings."""
+"""Inject one-shot Codex context-budget guidance before a user turn."""
 
 from __future__ import annotations
 
@@ -150,9 +150,13 @@ def claim_warning(session_id: str, level: str, consume_soft: bool = False) -> bo
 def warning_message(level: str, input_tokens: int, context_window: int) -> str:
     percentage = input_tokens / context_window * 100
     action = (
-        "Finish the current atomic step and prepare a PLAN/ADR/task handoff."
+        "In your next response, after completing the current atomic step, explicitly "
+        "tell the user that context is high and recommend preparing a PLAN/ADR/task "
+        "handoff for a new tab."
         if level == "soft"
-        else "Start a new tab at the next clean boundary using a PLAN/ADR/task handoff."
+        else "In your next response, explicitly recommend starting a new tab at the "
+        "next clean boundary and offer a PLAN/ADR/task handoff. Do not interrupt an "
+        "unsafe or incomplete atomic action."
     )
     return (
         f"[Context budget {level}] {input_tokens:,} / {context_window:,} input tokens "
@@ -165,7 +169,10 @@ def main() -> int:
         hook_input = json.load(sys.stdin)
     except (UnicodeDecodeError, json.JSONDecodeError):
         return 0
-    if not isinstance(hook_input, dict) or hook_input.get("hook_event_name") != "Stop":
+    if (
+        not isinstance(hook_input, dict)
+        or hook_input.get("hook_event_name") != "UserPromptSubmit"
+    ):
         return 0
 
     session_id = hook_input.get("session_id")
@@ -196,8 +203,14 @@ def main() -> int:
         return 0
 
     output = {
-        "continue": True,
-        "systemMessage": warning_message(level, input_tokens, context_window),
+        "hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit",
+            "additionalContext": warning_message(
+                level,
+                input_tokens,
+                context_window,
+            ),
+        },
     }
     print(json.dumps(output, separators=(",", ":")))
     return 0

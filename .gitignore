@@ -27,6 +27,8 @@ skills/.system/
 *.jsonl
 *.sqlite
 *.sqlite-*
+__pycache__/
+*.py[cod]
 models_cache.json
 installation_id
 version.json
