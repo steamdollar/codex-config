@@ -80,7 +80,12 @@ class ContextBudgetHookTest(unittest.TestCase):
     def additional_context(self, result: subprocess.CompletedProcess[str]) -> str:
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(result.stdout)
+        self.assertEqual(set(output), {"hookSpecificOutput"})
         hook_output = output["hookSpecificOutput"]
+        self.assertEqual(
+            set(hook_output),
+            {"hookEventName", "additionalContext"},
+        )
         self.assertEqual(hook_output["hookEventName"], "UserPromptSubmit")
         return hook_output["additionalContext"]
 
@@ -137,6 +142,20 @@ class ContextBudgetHookTest(unittest.TestCase):
         for index, hook_input in enumerate(cases):
             with self.subTest(index=index):
                 self.assert_silent(self.run_hook(hook_input=hook_input))
+
+    def test_missing_or_empty_transcript_fails_open(self) -> None:
+        missing = self.root / "missing.jsonl"
+        self.assert_silent(
+            self.run_hook(
+                hook_input={
+                    "hook_event_name": "UserPromptSubmit",
+                    "session_id": "missing-transcript",
+                    "transcript_path": str(missing),
+                }
+            )
+        )
+        self.transcript.write_text("", encoding="utf-8")
+        self.assert_silent(self.run_hook("empty-transcript"))
 
     def test_invalid_partial_override_fails_open(self) -> None:
         self.write_events(token_event(900, 1000))
