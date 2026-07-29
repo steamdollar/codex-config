@@ -12,7 +12,7 @@ symlinks; managed skills and runtime state stay local.
 - Custom-agent role bindings: `advisor.toml`, `luna-reader.toml`, `terra-executor.toml`
 - Attested reader fallback (legacy filename): `bin/luna-reader-worker`
 - Custom rule: `default.rules`
-- Four user-authored skills listed in `manifest.tsv`
+- Five user-authored skills listed in `manifest.tsv`
 
 `config.shared.toml` contains portable settings such as the selected model,
 plugins, and service defaults. `config.toml` is ignored, remains the manifest

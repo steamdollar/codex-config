@@ -11,6 +11,7 @@ file	codex-home/agents/terra-executor.toml	agents/terra-executor.toml	exact
 file	codex-home/agents/advisor.toml	agents/advisor.toml	exact
 file	codex-home/bin/luna-reader-worker	bin/luna-reader-worker	exact
 file	codex-home/rules/default.rules	rules/default.rules	exact
+dir	codex-home/skills/apple-design	skills/apple-design	exact
 dir	codex-home/skills/coldstart	skills/coldstart	exact
 dir	codex-home/skills/gh-pr-comment-report	skills/gh-pr-comment-report	exact
 dir	codex-home/skills/query-review	skills/query-review	exact
