@@ -234,7 +234,7 @@ test_config_sync() {
   "$work/scripts/sync-config.py" >/dev/null
   cmp -s "$work/config.toml" "$work/generated" || fail "sync is not idempotent"
   printf '\n[projects."/tmp/한글\\\\path"]\ntrust_level = "trusted"\n' >> "$work/config.toml"
-  printf '\n[hooks.state."/tmp/hooks.json:stop:0:0"]\ntrusted_hash = "sha256:test-hook-hash"\n' >> "$work/config.toml"
+  printf '\n[hooks.state."/tmp/hooks.json:stop:0:0"]\ntrusted_hash = "sha256:test-hook-hash"\nenabled = true\n' >> "$work/config.toml"
   "$work/scripts/sync-config.py" >/dev/null
   python3 - "$work/config.toml" <<'PY'
 import sys
@@ -244,6 +244,7 @@ with open(sys.argv[1], "rb") as f:
 projects = config["projects"]
 assert projects["/tmp/한글\\path"]["trust_level"] == "trusted"
 assert config["hooks"]["state"]["/tmp/hooks.json:stop:0:0"]["trusted_hash"] == "sha256:test-hook-hash"
+assert config["hooks"]["state"]["/tmp/hooks.json:stop:0:0"]["enabled"] is True
 PY
   cp "$work/config.toml" "$work/preserved-machine-state"
   "$work/scripts/sync-config.py" >/dev/null
@@ -257,6 +258,11 @@ PY
   cp "$work/config.toml" "$work/invalid-hook-state"
   if "$work/scripts/sync-config.py" >/dev/null 2>&1; then fail "invalid hook state schema accepted"; fi
   cmp -s "$work/config.toml" "$work/invalid-hook-state" || fail "invalid hook state partially modified local config"
+  cp "$work/generated" "$work/config.toml"
+  printf '\n[hooks.state."/bad/hooks.json:stop:0:0"]\ntrusted_hash = "sha256:bad-enabled"\nenabled = "yes"\n' >> "$work/config.toml"
+  cp "$work/config.toml" "$work/invalid-hook-enabled"
+  if "$work/scripts/sync-config.py" >/dev/null 2>&1; then fail "invalid hook enabled type accepted"; fi
+  cmp -s "$work/config.toml" "$work/invalid-hook-enabled" || fail "invalid hook enabled type partially modified local config"
   cp "$work/generated" "$work/config.toml"
   cp "$work/config.toml" "$work/before-shared-error"
   printf 'not = [\n' > "$work/config.shared.toml"

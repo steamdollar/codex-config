@@ -55,7 +55,7 @@ def validate_projects(value: object) -> dict[str, dict[str, str]]:
         projects[path] = {"trust_level": settings["trust_level"]}
     return projects
 
-def validate_hook_state(value: object) -> dict[str, dict[str, str]]:
+def validate_hook_state(value: object) -> dict[str, dict[str, str | bool]]:
     if value is None:
         return {}
     if not isinstance(value, dict):
@@ -64,12 +64,24 @@ def validate_hook_state(value: object) -> dict[str, dict[str, str]]:
     for hook_id, settings in value.items():
         if not isinstance(hook_id, str) or not isinstance(settings, dict):
             fail("unexpected [hooks.state] schema: expected hook tables")
-        if set(settings) != {"trusted_hash"} or not isinstance(settings["trusted_hash"], str):
-            fail("unexpected [hooks.state] schema: expected only string trusted_hash")
+        if (
+            "trusted_hash" not in settings
+            or set(settings) - {"trusted_hash", "enabled"}
+            or not isinstance(settings["trusted_hash"], str)
+            or ("enabled" in settings and not isinstance(settings["enabled"], bool))
+        ):
+            fail(
+                "unexpected [hooks.state] schema: expected string trusted_hash "
+                "and optional boolean enabled"
+            )
         hook_state[hook_id] = {"trusted_hash": settings["trusted_hash"]}
+        if "enabled" in settings:
+            hook_state[hook_id]["enabled"] = settings["enabled"]
     return hook_state
 
-def machine_local_state(config: dict) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
+def machine_local_state(
+    config: dict,
+) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str | bool]]]:
     hooks = config.get("hooks")
     if hooks is not None and not isinstance(hooks, dict):
         fail("unexpected [hooks] schema: expected a table")
@@ -82,7 +94,7 @@ def quote(value: str) -> str:
 def render(
     shared: bytes,
     projects: dict[str, dict[str, str]],
-    hook_state: dict[str, dict[str, str]],
+    hook_state: dict[str, dict[str, str | bool]],
 ) -> bytes:
     result = shared.rstrip(b"\n") + b"\n"
     if projects:
@@ -93,6 +105,9 @@ def render(
         result += b"\n"
         for hook_id in sorted(hook_state):
             result += f"[hooks.state.{quote(hook_id)}]\ntrusted_hash = {quote(hook_state[hook_id]['trusted_hash'])}\n".encode()
+            if "enabled" in hook_state[hook_id]:
+                enabled = "true" if hook_state[hook_id]["enabled"] else "false"
+                result += f"enabled = {enabled}\n".encode()
     return result
 
 def main() -> int:
