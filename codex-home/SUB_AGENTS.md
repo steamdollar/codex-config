@@ -2,67 +2,40 @@
 
 Goal: **The primary agent alone faces the user and owns decisions.** It executes directly or delegates approved work through the profitability gate. Roles describe responsibilities; model bindings are replaceable implementation choices. Share task plans and repo-local artifacts, not full conversations or duplicate rereads.
 
+The advisor role is disabled. The primary performs planning, diagnosis, review, and acceptance directly.
+
 ## Durable roles
 
 | role | owns | excludes |
 |---|---|---|
 | **Primary** | communication, discovery, plans and approvals, delegation or direct execution, acceptance, final decisions | routine work already delegated |
 | **Reader (`reader`)** | bounded bulk reads, extraction, classification, concise summaries | writes, plan decisions, final diagnosis |
-| **Advisor (`advisor`)** | bounded high-judgment planning, diagnosis, review, and tradeoff analysis | writes, final decisions, user communication |
 | **Executor (`executor`)** | one approved atomic change, targeted tests, concise evidence | scope changes, user decisions, further delegation |
 
 ## Workflow
 
-1. The primary agent discovers and owns the decision. At the mandatory delegation checkpoint, it records a concise direct-or-delegate basis and applies the benefit gate below.
+1. The primary agent discovers and owns the decision. If the task could plausibly meet the benefit gate, apply one delegation checkpoint after scope is clear.
 2. Non-trivial implementation or policy/behavior changes require a primary-owned plan and acceptance criteria. An explicit user request to implement or change something approves work within the stated scope; the `AGENTS.md` approval gate and literal-wording exemption still apply.
-3. Use `advisor` before implementation only when unresolved high-judgment uncertainty would materially benefit from an independent recommendation. The advisor recommends; the primary decides.
-4. Apply the delegation gate to each atomic approved step, then execute directly or delegate to `executor`. Continue through the approved plan without treating step boundaries as user approval gates.
-5. After all scoped steps, use one initial task-final `advisor` acceptance review for non-trivial behavior or policy changes. Small, literal, or mechanically verifiable changes remain primary-direct.
-6. Delegated work returns its evidence schema. The primary thin-checks every result, deep-reviews only on a trigger, and renews user approval only when scope, risk, or cost materially changes.
+3. Keep the initial direct-or-delegate route through approved atomic steps. Re-evaluate only when scope changes or a later step introduces newly independent or bulky work.
+4. Delegated work returns its evidence schema. The primary thin-checks every result, deep-reviews only on a trigger, and renews user approval only when scope, risk, or cost materially changes.
 
-## Delegation and advisor gates
+## Delegation gate
 
-- The primary applies these gates; the user does not need to request a sub-agent explicitly. Ask the user only when routing materially changes scope, risk, or cost.
-- The checkpoint is mandatory before every non-trivial task and each approved atomic step; spawning is not. Record an internal one-line basis such as `direct: sequential and context-heavy` or `delegate: bulky input -> bounded reader digest`.
+- The primary applies this gate; the user does not need to request a sub-agent explicitly. Ask the user only when routing materially changes scope, risk, or cost.
+- Default to primary-direct for small, sequential, context-heavy, or already-resolved work; these cases need no checkpoint or bookkeeping.
+- For a task with plausible delegation benefit, evaluate the gate once after scope is clear. Do not reopen this file merely because a new turn or plan step begins; re-read only under the `AGENTS.md` session-policy conditions.
 - Task category alone—including contract, DB, security, finance, migration, or external-system work—never forces a spawn. Delegate when one strong benefit or two moderate benefits apply and the role-specific criteria below are met.
-- **Strong benefits:** clean independent parallelism; large or repetitive input that can become a small bounded digest; or an independent judgment likely to change a materially uncertain or high-risk decision.
+- **Strong benefits:** clean independent parallelism or large or repetitive input that can become a small bounded digest.
 - **Moderate benefits:** workload leverage greater than handoff plus acceptance cost; context isolation; or validation asymmetry. Context hygiene alone remains insufficient.
 - Prefer primary-direct when the threshold is not met, or when work is small, sequential, context-heavy, already resolved by evidence, or no larger than handoff plus acceptance cost.
 - Use `reader` only when the input is large, output has a small schema, and spot-checking is cheap: bulk sweeps, long-log/comment classification, repetitive comparison, or extraction. Exclude small reads, ambiguous design, root-cause diagnosis, and final security/finance judgment.
-- Use advisory mode only when a second opinion can change an unresolved pre-implementation decision: competing plausible diagnoses, a failed targeted attempt, materially ambiguous architecture or rollback choices, or high-stakes judgment with genuine uncertainty. Risk raises the value of review but is not a trigger by itself.
-- For non-trivial implementation, default to one acceptance-review advisor after the approved task scope is implemented and targeted tests finish. Review at the task boundary, not after every step. Skip it when the change is literal, routine, or no larger than the review handoff and acceptance cost.
-- The primary gives the acceptance reviewer a bounded packet: objective and acceptance criteria; behavior/data-flow summary; diff base and changed files; tests and results; risk focus and invariants; excluded or unrelated dirty files; and the required findings schema. The reviewer verifies the actual diff, stays read-only, and returns only blocking/non-blocking findings with severity and `file:line`, test gaps, residual risks, or `LGTM`.
-- Do not combine pre-implementation advisory and post-implementation acceptance review unless independent judgments at both boundaries are justified by material uncertainty or high risk. Re-review only when fixing a blocking finding materially changes the contract or behavior, or the original finding cannot otherwise be closed by primary evidence.
-- Do not use pre-implementation advisory mode for routine authorized commit/push, scoped external actions, or decisions already resolved by local evidence. This does not replace the task-final acceptance-review rule above.
 - Use `executor` only for an approved atomic implementation with clean ownership when the independent workload benefit exceeds handoff and acceptance cost; otherwise execute directly.
 - Executor handoffs include objective, allowed scope/files, acceptance criteria, test, constraints, and unknowns. Executors return only `status / changed files / tests / deviations / unknowns`; store bulky logs as artifacts.
 - Give agents only relevant paths, contracts, and artifacts; never the full conversation or a full-repo reread requirement.
 
-## Replaceable model bindings
+## Spawn runtime
 
-| role | current binding | operating contract |
-|---|---|---|
-| **Primary** | `gpt-5.6-sol`, medium | user-facing coordination and direct work by default |
-| **Reader** | `gpt-5.6-luna`, low, read-only | bounded bulk evidence and structured digests |
-| **Advisor** | `gpt-5.6-sol`, high, read-only | high-judgment recommendation before the primary decides |
-| **Executor** | `gpt-5.6-terra`, medium, workspace-write | one approved atomic implementation step |
-
-The role contracts above remain stable when model bindings change. A role TOML file declares the binding; configuration proves intent, not actual runtime selection.
-
-## Native delegation, attestation, and fallback
-
-- Native typed delegation uses `agents.spawn_agent`, not the reduced `collaboration.spawn_agent` interface. Pass the exact `agent_type` (`reader`, `advisor`, or `executor`) and use `fork_turns = "none"`; a task label alone does not select or attest a role.
-- Verify the selected role/model from runtime-returned metadata or the saved child trace's `session_meta` and `turn_context`. If spawn metadata is absent, wait for the child to complete, locate its trace by `parent_thread_id` and canonical `agent_path`, and extract only those attestation records before reporting degradation. If neither source attests it, never claim that role/model.
-- Treat `agent_nickname` as a runtime label, not configured identity. Report the attested role, model, and canonical task path; include the nickname only as an optional label.
-- Treat `wait_agent` as synchronization, not a worker deadline. `Wait timed out` means only that the child did not finish within that wait call; it is non-terminal and must never be reported as agent failure.
-- Distinguish terminal outcomes from waiting explicitly: `completed` is success subject to acceptance; an explicit runtime/tool `failed` or `error` outcome is failure; `interrupted` means cancellation, not an intrinsic worker failure; `running` remains active regardless of elapsed time.
-- Never call `interrupt_agent` solely because elapsed time or repeated wait calls seem long. Interrupt only on the user's request, an explicit terminal runtime error, a pre-agreed deadline, or a concrete safety/resource condition that requires stopping; report which condition applied.
-- Do not invent an implicit sub-agent deadline. When no deadline was agreed, keep waiting or do independent primary work and collect the completion later. Use longer blocking waits for high-reasoning agents, and send progress updates without claiming that a silent child is stuck.
-- Prefer the native custom-agent selector. If `reader` selection or model attestation is unavailable, use the legacy-compatible `$CODEX_HOME/bin/luna-reader-worker --cwd "$PWD" "{bounded task}"`; it starts a separate read-only Codex process pinned to `gpt-5.6-luna` and fails unless its saved transcript attests that model. Report it as `[MODEL-WORKER: gpt-5.6-luna]`, not as a native sub-agent.
-- If a native role is missing, a spawn fails, or selection/model attestation is unavailable, report `[DEGRADED: {role} selection or attestation unavailable]`. For `reader`, use the model-worker fallback when available; otherwise apply the primary-direct gate. For `advisor` or `executor`, apply the primary-direct gate unless another approved route materially changes scope, risk, or cost.
-- Use `agy` only when `command -v agy` succeeds and the user explicitly approves cross-provider execution, for reader unavailability, a valuable provider-diverse check, a huge independent batch, or required browser/Google integration. Send only the minimum required artifacts, never secrets or the full conversation. Run `agy models`, select the lowest-sufficient Flash model, then `agy --sandbox --print` with the reader digest contract. Never use it as a routine co-default.
-- Report `[DEGRADED: reader unavailable -> Antigravity/{actual model}]` or `[CROSS-CHECK: Antigravity/{actual model}]`; on failure, use the direct-fallback rule.
-- Depth is 1: children never spawn. Only one executor writes to a repo at once; reader and advisor are read-only.
+- Do not read spawn mechanics while deciding whether to delegate. Immediately before the first actual spawn or model-worker fallback in a session, read and apply `SUB_AGENTS_RUNTIME.md`; reuse it from context thereafter and re-read only after file change or relevant context loss.
 
 ## Acceptance and report
 

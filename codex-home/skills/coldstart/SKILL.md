@@ -1,6 +1,6 @@
 ---
 name: coldstart
-description: Generate a cold-start handoff prompt that the user can paste into a fresh Codex or coding-agent tab to continue a specific task. Use when the user asks for a "cold start prompt", "new tab prompt", "handoff prompt", "context reset prompt", "다른 탭에서 이어서 할 prompt", "새 세션으로 넘길 prompt", "인수인계 prompt", or similar. Prefer references to existing PLAN, ADR, spec, task, and decision docs over re-explaining context inline.
+description: Create a handoff prompt for continuing work in a fresh Codex or agent tab, grounded in existing PLAN, ADR, spec, task, and decision docs. Use for "cold start", "new tab", or "인수인계 prompt" requests.
 ---
 
 # Coldstart

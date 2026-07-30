@@ -1,6 +1,6 @@
 ---
 name: gh-pr-comment-report
-description: Read GitHub pull request comments and review threads, analyze actionable feedback, and deliver a concise in-chat report or explicitly requested markdown export. Use when the user asks to read PR comments, analyze PR feedback, summarize review comments with original text, create a compact PR comment report, or export PR comments to md or a file.
+description: Read and analyze GitHub PR comments and review threads, then return a concise actionable report or requested Markdown export with original feedback. Use for PR comment or feedback summaries, not implementation.
 ---
 
 # GitHub PR Comment Report

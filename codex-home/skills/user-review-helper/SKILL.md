@@ -1,21 +1,6 @@
 ---
 name: user-review-helper
-description: >-
-  Help the user review code the agent just wrote in one of three modes. SESSION
-  mode runs an interactive two-gate review session: first a staged
-  natural-language briefing with runtime instances but no code or file paths,
-  then after confirmation a runtime-flow-ordered clickable file list and
-  user-driven per-item Q&A; use for "리뷰 세션 준비(해줘)", "리뷰 세션 하자",
-  "이번 작업 같이 리뷰하자", "설명부터 해줘 그리고 리뷰", "run a review
-  session", or "walk me through the changes". QUICK mode gives an in-chat
-  ordered, link-rich reading path; use for "review order", "리뷰 순서", "리뷰할
-  파일 정리", "뭐부터 리뷰하지", or "리뷰 리스트". FULL mode exports a
-  standalone markdown briefing for completed large or multi-stage work, with
-  conclusion-first stage summaries, a data-flow reading path, one representative
-  worked example per stage, and a one-page mental-model diagram; use for "리뷰용
-  문서/md로 export", "단계별로 리뷰 정리해서 문서로", "리뷰 브리핑 문서
-  만들어줘", "export a review doc", or "make a review guide". This is a reading
-  guide, not a code review and not a PR-comment archive.
+description: Guide review of code the agent just wrote. Use SESSION for an interactive walkthrough, QUICK for an ordered clickable reading path, or FULL for a standalone review briefing. Trigger on "리뷰 세션", "리뷰 순서/리스트", or review-guide export; not code review or PR feedback.
 ---
 
 # User Review Helper (three modes)

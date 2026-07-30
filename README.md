@@ -6,7 +6,8 @@ symlinks; managed skills and runtime state stay local.
 
 ## Managed scope
 
-- Root guidance: `AGENTS.md`, `SUB_AGENTS.md`, `REVIEW.md`, `DOMAIN_RULES.md`
+- Root guidance: `AGENTS.md`, `SUB_AGENTS.md`, conditional
+  `SUB_AGENTS_RUNTIME.md`, `REVIEW.md`, `DOMAIN_RULES.md`
 - Shared machine configuration: `config.shared.toml`; machine-local `config.toml`
 - Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
 - Custom-agent role bindings: `advisor.toml`, `luna-reader.toml`, `terra-executor.toml`

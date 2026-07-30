@@ -1,6 +1,6 @@
 ---
 name: query-review
-description: "Walk through a SQL/analytics query, especially Athena KPI or metric queries, one at a time, top-down. Break it into big blocks, explain each for a reader weak on SQL, then verify it semantically and business-wise: numerator vs denominator population, aggregation grain, cohort vs period-activity, greater-than-100-percent or negative possibilities. If it is wrong, offer options and apply the fix with a targeted test. Use when the user asks \"이 쿼리 맞아?\", \"쿼리 분석/검토\", \"쿼리 탑다운으로 설명\", \"쿼리 의미 확인\", \"쿼리별로 보자\", \"review this query\", \"is this query correct\", or similar, meaning they want to understand and validate a query, not just run it."
+description: "Explain and validate SQL or analytics queries top-down, especially Athena KPI queries. Check population, grain, cohort versus period activity, numerator/denominator, and invalid percentages. Use for \"이 쿼리 맞아?\", query analysis, or semantic review."
 ---
 
 # Query Review Skill

@@ -1,6 +1,7 @@
 # type	repo_source	live_target	migration_policy
 file	codex-home/AGENTS.md	AGENTS.md	exact
 file	codex-home/SUB_AGENTS.md	SUB_AGENTS.md	exact
+file	codex-home/SUB_AGENTS_RUNTIME.md	SUB_AGENTS_RUNTIME.md	exact
 file	codex-home/REVIEW.md	REVIEW.md	exact
 file	codex-home/DOMAIN_RULES.md	DOMAIN_RULES.md	exact
 file	config.toml	config.toml	exact

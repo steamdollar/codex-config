@@ -68,27 +68,32 @@ if "codex-home/agents/advisor.toml\tagents/advisor.toml\texact" not in manifest:
     raise SystemExit("manifest does not install advisor.toml")
 
 sub_agents = (root / "codex-home" / "SUB_AGENTS.md").read_text()
-for selector in ("`reader`", "`advisor`", "`executor`"):
-    if selector not in sub_agents:
-        raise SystemExit(f"SUB_AGENTS.md missing native selector {selector}")
-if 'fork_turns = "none"' not in sub_agents:
-    raise SystemExit("SUB_AGENTS.md missing depth-isolated native delegation contract")
+runtime = (root / "codex-home" / "SUB_AGENTS_RUNTIME.md").read_text()
+if "`SUB_AGENTS_RUNTIME.md`" not in sub_agents:
+    raise SystemExit("SUB_AGENTS.md missing conditional runtime route")
+if "codex-home/SUB_AGENTS_RUNTIME.md\tSUB_AGENTS_RUNTIME.md\texact" not in manifest:
+    raise SystemExit("manifest does not install SUB_AGENTS_RUNTIME.md")
+for selector in ("`reader`", "`executor`"):
+    if selector not in runtime:
+        raise SystemExit(f"SUB_AGENTS_RUNTIME.md missing native selector {selector}")
+if 'fork_turns = "none"' not in runtime:
+    raise SystemExit("SUB_AGENTS_RUNTIME.md missing depth-isolated native delegation contract")
 for wait_contract in (
     "`Wait timed out` means only that the child did not finish within that wait call",
     "must never be reported as agent failure",
     "Never call `interrupt_agent` solely because elapsed time or repeated wait calls seem long",
     "Do not invent an implicit sub-agent deadline",
 ):
-    if wait_contract not in sub_agents:
-        raise SystemExit(f"SUB_AGENTS.md missing wait/interrupt contract: {wait_contract}")
+    if wait_contract not in runtime:
+        raise SystemExit(f"SUB_AGENTS_RUNTIME.md missing wait/interrupt contract: {wait_contract}")
 for attestation_contract in (
     "wait for the child to complete, locate its trace by `parent_thread_id` and canonical `agent_path`",
     "extract only those attestation records before reporting degradation",
     "Treat `agent_nickname` as a runtime label, not configured identity",
     "Report the attested role, model, and canonical task path",
 ):
-    if attestation_contract not in sub_agents:
-        raise SystemExit(f"SUB_AGENTS.md missing attestation contract: {attestation_contract}")
+    if attestation_contract not in runtime:
+        raise SystemExit(f"SUB_AGENTS_RUNTIME.md missing attestation contract: {attestation_contract}")
 PY
 }
 
