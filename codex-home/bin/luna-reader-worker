@@ -35,6 +35,7 @@ worker_prompt=$(printf '%s\n\nTask:\n%s' \
 if ! "$codex_bin" \
   --ask-for-approval never \
   --model gpt-5.6-luna \
+  --config model_reasoning_effort=medium \
   --sandbox read-only \
   --cd "$cwd" \
   exec --json --skip-git-repo-check "$worker_prompt" >"$log_file"; then

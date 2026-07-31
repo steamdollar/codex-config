@@ -48,7 +48,7 @@ blocks the push; `git push --no-verify` is the explicit emergency bypass.
 Native custom agents use Codex's `MultiAgentV2` interface under the custom
 `agents` namespace. This exposes the `agent_type` selector that the reserved
 `collaboration` namespace hides. Runtime roles are `reader`, `advisor`, and
-`executor`; their TOML files bind them to Luna, Sol, and Terra respectively.
+`executor`; reader and executor bind to Luna, while advisor binds to Sol.
 The physical filenames `luna-reader.toml` and `terra-executor.toml` remain for
 managed-symlink compatibility; runtime identity comes from each TOML `name`.
 Role contracts are therefore stable when a model binding changes. Reload the
@@ -132,8 +132,8 @@ is refreshed.
 
 If the native `reader` selector is unavailable or cannot attest the selected
 model, the legacy-named `bin/luna-reader-worker` starts a separate read-only
-Codex process pinned to `gpt-5.6-luna`, then checks the saved session
-transcript before returning the result. This preserves the current reader
+Codex process pinned to `gpt-5.6-luna` with medium reasoning, then checks the
+saved session transcript before returning the result. This preserves the current reader
 binding but does not appear as a native sub-agent thread in the IDE UI.
 
 ```bash

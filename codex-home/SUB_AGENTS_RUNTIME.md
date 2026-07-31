@@ -6,9 +6,9 @@ Read this file only immediately before the first actual spawn or model-worker fa
 
 | role | current binding | operating contract |
 |---|---|---|
-| **Primary** | `gpt-5.6-sol`, medium | user-facing coordination and direct work by default |
-| **Reader** | `gpt-5.6-luna`, low, read-only | bounded bulk evidence and structured digests |
-| **Executor** | `gpt-5.6-terra`, medium, workspace-write | one approved atomic implementation step |
+| **Primary** | `gpt-5.6-sol`, high | user-facing coordination and direct work by default |
+| **Reader** | `gpt-5.6-luna`, medium, read-only | bounded bulk evidence and structured digests |
+| **Executor** | `gpt-5.6-luna`, xhigh, workspace-write | one approved atomic implementation step |
 
 The role contracts above remain stable when model bindings change. A role TOML file declares the binding; configuration proves intent, not actual runtime selection.
 

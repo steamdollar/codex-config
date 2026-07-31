@@ -35,13 +35,13 @@ expected_roles = {
     "luna-reader.toml": {
         "name": "reader",
         "model": "gpt-5.6-luna",
-        "model_reasoning_effort": "low",
+        "model_reasoning_effort": "medium",
         "sandbox_mode": "read-only",
     },
     "terra-executor.toml": {
         "name": "executor",
-        "model": "gpt-5.6-terra",
-        "model_reasoning_effort": "medium",
+        "model": "gpt-5.6-luna",
+        "model_reasoning_effort": "xhigh",
         "sandbox_mode": "workspace-write",
     },
     "advisor.toml": {
