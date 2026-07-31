@@ -16,7 +16,11 @@ Priority order:
 - For code, config, or logs, inspect real files/interfaces before answering or editing.
 - If the relevant implementation is not found, say `[UNKNOWN: file/interface not confirmed]` and do not invent details.
 - Read-only discovery needs no additional approval. An explicit user request authorizes scoped local, reversible changes.
-- Obtain fresh confirmation immediately before destructive or external-system state changes. For structural work or costly tests, ask only when the approach or cost was not explicit in the approved scope.
+- Before an external-system or database state change, verify the exact environment, account, region, and resource; report the target, action, and recovery path; then obtain fresh confirmation.
+- When applicable, secure a dry-run, backup, and rollback path before the change.
+- Redact credentials and secrets from prompts, commands, logs, and artifacts.
+- Apply pessimistic logic when security or financial loss is possible.
+- For other destructive actions, obtain fresh confirmation immediately before execution. For structural work or costly tests, ask only when the approach or cost was not explicit in the approved scope.
 - Literal wording edits that do not change behavior or policy may proceed directly.
 - Keep large changes atomic and easy to review or roll back.
 - Ask the user to run a command only when required access, authority, or external context is unavailable; provide the exact command or path and ask for the result.
@@ -24,7 +28,6 @@ Priority order:
 # Route
 
 - Review or design-review request: follow `REVIEW.md`.
-- Finance, security, blockchain, external API/system, infrastructure, or DB state-change work: follow `DOMAIN_RULES.md`.
 
 # Agent Workflow
 
