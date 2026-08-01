@@ -10,8 +10,7 @@ symlinks; managed skills and runtime state stay local.
   `SUB_AGENTS_RUNTIME.md`, `REVIEW.md`
 - Shared machine configuration: `config.shared.toml`; machine-local `config.toml`
 - Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
-- Custom-agent role bindings: `advisor.toml`, `luna-reader.toml`, `terra-executor.toml`
-- Attested reader fallback (legacy filename): `bin/luna-reader-worker`
+- Custom-agent role bindings: `advisor.toml`, `luna-reader.toml`, `executor.toml`
 - Custom rule: `default.rules`
 - Five user-authored skills listed in `manifest.tsv`
 
@@ -49,11 +48,11 @@ Native custom agents use Codex's `MultiAgentV2` interface under the custom
 `agents` namespace. This exposes the `agent_type` selector that the reserved
 `collaboration` namespace hides. Runtime roles are `reader`, `advisor`, and
 `executor`; reader and executor bind to Luna, while advisor binds to Sol.
-The physical filenames `luna-reader.toml` and `terra-executor.toml` remain for
-managed-symlink compatibility; runtime identity comes from each TOML `name`.
-Role contracts are therefore stable when a model binding changes. Reload the
-VS Code window after changing this configuration; new sessions should expose
-`agents.spawn_agent` with `reader`, `advisor`, and `executor` role selection.
+Runtime identity comes from each TOML `name`; `advisor` is selected only on an
+explicit user request. Role contracts are therefore stable when a model binding
+changes. Reload the VS Code window after changing this configuration; new
+sessions should expose `agents.spawn_agent` with `reader`, `advisor`, and
+`executor` role selection.
 
 ## Quick setup on another machine
 
@@ -127,20 +126,6 @@ The install prints its timestamped backup path. Keep that path for rollback.
 After installing or changing hooks, open `/hooks` in Codex and review and trust
 the hook definition. Restart Codex after changing hooks or skills so discovery
 is refreshed.
-
-## Reader fallback
-
-If the native `reader` selector is unavailable or cannot attest the selected
-model, the legacy-named `bin/luna-reader-worker` starts a separate read-only
-Codex process pinned to `gpt-5.6-luna` with medium reasoning, then checks the
-saved session transcript before returning the result. This preserves the current reader
-binding but does not appear as a native sub-agent thread in the IDE UI.
-
-```bash
-"${CODEX_HOME:-$HOME/.codex}/bin/luna-reader-worker" \
-  --cwd "$PWD" \
-  "Read the supplied logs and return a five-line categorized summary."
-```
 
 ## Context-budget warning
 

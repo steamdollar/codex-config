@@ -32,9 +32,9 @@ Priority order:
 # Agent Workflow
 
 - The primary agent is the only user-facing coordinator; it owns discovery, decisions, plan approval, delegation, acceptance, and final reporting.
-- Treat the active contents of `SUB_AGENTS.md` as session policy. Normally read it once per session, and only before work that could plausibly benefit from delegation. Reuse the current context after reading; re-read only when the file changed or the relevant policy is unavailable after context compaction. Small or sequential tasks and literal wording edits stay primary-direct without opening it.
-- Evaluate the `SUB_AGENTS.md` delegation gate once after a non-trivial task's scope is clear. Re-evaluate only when scope changes or a later step introduces newly independent or bulky work.
-- The user does not need to request a sub-agent explicitly. When the `SUB_AGENTS.md` delegation gate is satisfied, delegate by default without asking unless routing materially changes scope, risk, or cost.
+- Treat the active contents of the global session-policy file at `/home/lsj/.codex/codex-config/codex-home/SUB_AGENTS.md` as session policy. Resolve this absolute path directly; do not search relative to the current workspace. Normally read it once per session, and only before work that could plausibly benefit from delegation. Reuse the current context after reading; re-read only when the file changed or the relevant policy is unavailable after context compaction. Small or sequential tasks and literal wording edits stay primary-direct without opening it.
+- Evaluate that global `SUB_AGENTS.md` delegation gate once after a non-trivial task's scope is clear. Re-evaluate when scope changes or a later step introduces newly independent work; if a later step introduces a bulk read, re-evaluate before the Primary consumes that input.
+- The user does not need to request a sub-agent explicitly. When that global `SUB_AGENTS.md` delegation gate is satisfied, delegate by default without asking unless routing materially changes scope, risk, or cost.
 - If the configured role or model cannot be verified, report `[DEGRADED]` and do not claim that model.
 
 # Session

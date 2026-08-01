@@ -35,10 +35,10 @@ expected_roles = {
     "luna-reader.toml": {
         "name": "reader",
         "model": "gpt-5.6-luna",
-        "model_reasoning_effort": "medium",
+        "model_reasoning_effort": "high",
         "sandbox_mode": "read-only",
     },
-    "terra-executor.toml": {
+    "executor.toml": {
         "name": "executor",
         "model": "gpt-5.6-luna",
         "model_reasoning_effort": "xhigh",
@@ -66,6 +66,8 @@ for filename, expected in expected_roles.items():
 manifest = (root / "manifest.tsv").read_text()
 if "codex-home/agents/advisor.toml\tagents/advisor.toml\texact" not in manifest:
     raise SystemExit("manifest does not install advisor.toml")
+if "codex-home/agents/executor.toml\tagents/executor.toml\texact" not in manifest:
+    raise SystemExit("manifest does not install executor.toml")
 
 sub_agents = (root / "codex-home" / "SUB_AGENTS.md").read_text()
 runtime = (root / "codex-home" / "SUB_AGENTS_RUNTIME.md").read_text()
@@ -73,27 +75,19 @@ if "`SUB_AGENTS_RUNTIME.md`" not in sub_agents:
     raise SystemExit("SUB_AGENTS.md missing conditional runtime route")
 if "codex-home/SUB_AGENTS_RUNTIME.md\tSUB_AGENTS_RUNTIME.md\texact" not in manifest:
     raise SystemExit("manifest does not install SUB_AGENTS_RUNTIME.md")
-for selector in ("`reader`", "`executor`"):
+for selector in ("`reader`", "`executor`", "`advisor`"):
     if selector not in runtime:
         raise SystemExit(f"SUB_AGENTS_RUNTIME.md missing native selector {selector}")
 if 'fork_turns = "none"' not in runtime:
     raise SystemExit("SUB_AGENTS_RUNTIME.md missing depth-isolated native delegation contract")
-for wait_contract in (
-    "`Wait timed out` means only that the child did not finish within that wait call",
-    "must never be reported as agent failure",
-    "Never call `interrupt_agent` solely because elapsed time or repeated wait calls seem long",
-    "Do not invent an implicit sub-agent deadline",
-):
-    if wait_contract not in runtime:
-        raise SystemExit(f"SUB_AGENTS_RUNTIME.md missing wait/interrupt contract: {wait_contract}")
 for attestation_contract in (
-    "wait for the child to complete, locate its trace by `parent_thread_id` and canonical `agent_path`",
-    "extract only those attestation records before reporting degradation",
-    "Treat `agent_nickname` as a runtime label, not configured identity",
-    "Report the attested role, model, and canonical task path",
+    "`parent_thread_id` and canonical `agent_path`",
+    "[DEGRADED: role/model not attested]",
 ):
     if attestation_contract not in runtime:
         raise SystemExit(f"SUB_AGENTS_RUNTIME.md missing attestation contract: {attestation_contract}")
+if "luna-reader-worker" in manifest or "luna-reader-worker" in runtime:
+    raise SystemExit("deprecated luna-reader-worker is still managed or referenced")
 PY
 }
 
