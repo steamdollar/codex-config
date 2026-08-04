@@ -6,11 +6,10 @@ symlinks; managed skills and runtime state stay local.
 
 ## Managed scope
 
-- Root guidance: `AGENTS.md`, `SUB_AGENTS.md`, conditional
-  `SUB_AGENTS_RUNTIME.md`, `REVIEW.md`
+- Root guidance: `AGENTS.md`, `SUB_AGENTS.md`, `REVIEW.md`
 - Shared machine configuration: `config.shared.toml`; machine-local `config.toml`
 - Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
-- Custom-agent role bindings: `advisor.toml`, `luna-reader.toml`, `executor.toml`
+- Custom-agent role bindings: `advisor.toml`, `luna-reader.toml`, `executor.toml`, `researcher.toml`
 - Custom rule: `default.rules`
 - Five user-authored skills listed in `manifest.tsv`
 
@@ -46,13 +45,13 @@ blocks the push; `git push --no-verify` is the explicit emergency bypass.
 
 Native custom agents use Codex's `MultiAgentV2` interface under the custom
 `agents` namespace. This exposes the `agent_type` selector that the reserved
-`collaboration` namespace hides. Runtime roles are `reader`, `advisor`, and
-`executor`; reader and executor bind to Luna, while advisor binds to Sol.
-Runtime identity comes from each TOML `name`; `advisor` is selected only on an
-explicit user request. Role contracts are therefore stable when a model binding
-changes. Reload the VS Code window after changing this configuration; new
-sessions should expose `agents.spawn_agent` with `reader`, `advisor`, and
-`executor` role selection.
+`collaboration` namespace hides. Runtime roles are `reader`, `researcher`,
+`advisor`, and `executor`; reader and executor bind to Luna, researcher binds to
+Terra, and advisor binds to Sol. Runtime identity comes from each TOML `name`;
+`advisor` is selected only on an explicit user request. Role contracts are
+therefore stable when a model binding changes. Reload the VS Code window after
+changing this configuration, then start a new session so `agents.spawn_agent`
+exposes `reader`, `researcher`, `advisor`, and `executor` role selection.
 
 ## Quick setup on another machine
 

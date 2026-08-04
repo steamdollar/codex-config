@@ -50,6 +50,12 @@ expected_roles = {
         "model_reasoning_effort": "high",
         "sandbox_mode": "read-only",
     },
+    "researcher.toml": {
+        "name": "researcher",
+        "model": "gpt-5.6-terra",
+        "model_reasoning_effort": "medium",
+        "sandbox_mode": "read-only",
+    },
 }
 
 seen_names = set()
@@ -68,25 +74,30 @@ if "codex-home/agents/advisor.toml\tagents/advisor.toml\texact" not in manifest:
     raise SystemExit("manifest does not install advisor.toml")
 if "codex-home/agents/executor.toml\tagents/executor.toml\texact" not in manifest:
     raise SystemExit("manifest does not install executor.toml")
+if "codex-home/agents/researcher.toml\tagents/researcher.toml\texact" not in manifest:
+    raise SystemExit("manifest does not install researcher.toml")
 
 sub_agents = (root / "codex-home" / "SUB_AGENTS.md").read_text()
-runtime = (root / "codex-home" / "SUB_AGENTS_RUNTIME.md").read_text()
-if "`SUB_AGENTS_RUNTIME.md`" not in sub_agents:
-    raise SystemExit("SUB_AGENTS.md missing conditional runtime route")
-if "codex-home/SUB_AGENTS_RUNTIME.md\tSUB_AGENTS_RUNTIME.md\texact" not in manifest:
-    raise SystemExit("manifest does not install SUB_AGENTS_RUNTIME.md")
-for selector in ("`reader`", "`executor`", "`advisor`"):
-    if selector not in runtime:
-        raise SystemExit(f"SUB_AGENTS_RUNTIME.md missing native selector {selector}")
-if 'fork_turns = "none"' not in runtime:
-    raise SystemExit("SUB_AGENTS_RUNTIME.md missing depth-isolated native delegation contract")
+if (root / "codex-home" / "SUB_AGENTS_RUNTIME.md").exists():
+    raise SystemExit("deprecated SUB_AGENTS_RUNTIME.md still exists")
+if "SUB_AGENTS_RUNTIME.md" in sub_agents or "SUB_AGENTS_RUNTIME.md" in manifest:
+    raise SystemExit("deprecated SUB_AGENTS_RUNTIME.md is still managed or referenced")
+for selector in ("`reader`", "`researcher`", "`executor`", "`advisor`"):
+    if selector not in sub_agents:
+        raise SystemExit(f"SUB_AGENTS.md missing native selector {selector}")
+if "Automatic routing applies to `reader`, `researcher`, and `executor`." not in sub_agents:
+    raise SystemExit("SUB_AGENTS.md missing automatic researcher routing")
+if "exact `agent_type` (`reader`, `researcher`, `executor`, or user-requested `advisor`)" not in sub_agents:
+    raise SystemExit("SUB_AGENTS.md missing exact researcher agent_type contract")
+if 'fork_turns = "none"' not in sub_agents:
+    raise SystemExit("SUB_AGENTS.md missing depth-isolated native delegation contract")
 for attestation_contract in (
     "`parent_thread_id` and canonical `agent_path`",
     "[DEGRADED: role/model not attested]",
 ):
-    if attestation_contract not in runtime:
-        raise SystemExit(f"SUB_AGENTS_RUNTIME.md missing attestation contract: {attestation_contract}")
-if "luna-reader-worker" in manifest or "luna-reader-worker" in runtime:
+    if attestation_contract not in sub_agents:
+        raise SystemExit(f"SUB_AGENTS.md missing attestation contract: {attestation_contract}")
+if "luna-reader-worker" in manifest or "luna-reader-worker" in sub_agents:
     raise SystemExit("deprecated luna-reader-worker is still managed or referenced")
 PY
 }

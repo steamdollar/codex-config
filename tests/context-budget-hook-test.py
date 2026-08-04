@@ -29,6 +29,41 @@ def token_event(input_tokens: int, context_window: int, total_tokens: int = 9_99
     }
 
 
+def event_message(role: str) -> dict:
+    return {
+        "type": "response_item",
+        "payload": {"type": "message", "role": role, "content": []},
+    }
+
+
+def event_marker(marker: str) -> dict:
+    return {"type": "event_msg", "payload": {"type": marker}}
+
+
+def tool_call(command: str, *, name: str = "exec") -> dict:
+    return {
+        "type": "response_item",
+        "payload": {
+            "type": "custom_tool_call",
+            "status": "completed",
+            "name": name,
+            "call_id": command,
+            "input": command,
+        },
+    }
+
+
+def tool_output(output: object) -> dict:
+    return {
+        "type": "response_item",
+        "payload": {
+            "type": "custom_tool_call_output",
+            "call_id": "call",
+            "output": output,
+        },
+    }
+
+
 class ContextBudgetHookTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
@@ -171,6 +206,61 @@ class ContextBudgetHookTest(unittest.TestCase):
         self.write_events(token_event(900, 1000))
         self.assert_silent(self.run_hook("unsafe-state"))
         self.assertEqual(stat.S_IMODE(self.state.stat().st_mode), 0o755)
+
+    def test_clean_completed_turn_has_no_audit_warning(self) -> None:
+        self.write_events(
+            token_event(100, 1000),
+            event_marker("task_started"),
+            event_message("user"),
+            tool_call("printf clean"),
+            tool_output("ok"),
+            event_marker("task_complete"),
+        )
+        self.assert_silent(self.run_hook("clean-turn"))
+
+    def test_violating_completed_turn_reports_each_audit_trigger(self) -> None:
+        events: list[dict] = [
+            token_event(100, 1000),
+            event_marker("task_started"),
+            event_message("user"),
+        ]
+        events.extend(tool_call("cat same.txt") for _ in range(12))
+        events.append(tool_output("x" * (12 * 1024 + 1)))
+        events.append(tool_output("Warning: truncated output"))
+        events.append(event_marker("task_complete"))
+        self.write_events(*events)
+        audit = self.additional_context(self.run_hook("violating-turn"))
+        self.assertIn("[Turn audit]", audit)
+        self.assertIn("tool calls=12", audit)
+        self.assertIn("total output=12,314 bytes", audit)
+        self.assertIn("max output=12,289 bytes", audit)
+        self.assertIn("likely reads=12 without reader spawn", audit)
+        self.assertIn("exact duplicate command", audit)
+        self.assertIn("explicit truncation marker", audit)
+
+    def test_malformed_completed_turn_fails_open(self) -> None:
+        self.write_events(
+            "not-json",
+            event_marker("task_started"),
+            event_message("user"),
+            {"type": "response_item", "payload": {"type": "custom_tool_call"}},
+            {"type": "response_item", "payload": {"type": "custom_tool_call_output", "output": {}}},
+            event_marker("task_complete"),
+        )
+        self.assert_silent(self.run_hook("malformed-turn"))
+
+    def test_audit_is_injected_alongside_context_warning(self) -> None:
+        self.write_events(
+            token_event(450, 1000),
+            event_marker("task_started"),
+            event_message("user"),
+            tool_call("cat repeated.txt"),
+            tool_call("cat repeated.txt"),
+            event_marker("task_complete"),
+        )
+        context = self.additional_context(self.run_hook("context-and-audit"))
+        self.assertIn("[Context budget soft]", context)
+        self.assertIn("[Turn audit]", context)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 # type	repo_source	live_target	migration_policy
 file	codex-home/AGENTS.md	AGENTS.md	exact
 file	codex-home/SUB_AGENTS.md	SUB_AGENTS.md	exact
-file	codex-home/SUB_AGENTS_RUNTIME.md	SUB_AGENTS_RUNTIME.md	exact
 file	codex-home/REVIEW.md	REVIEW.md	exact
 file	config.toml	config.toml	exact
 file	codex-home/hooks.json	hooks.json	exact
@@ -9,6 +8,7 @@ file	codex-home/hooks/context-budget.py	hooks/context-budget.py	exact
 file	codex-home/agents/luna-reader.toml	agents/luna-reader.toml	exact
 file	codex-home/agents/executor.toml	agents/executor.toml	exact
 file	codex-home/agents/advisor.toml	agents/advisor.toml	exact
+file	codex-home/agents/researcher.toml	agents/researcher.toml	exact
 file	codex-home/rules/default.rules	rules/default.rules	exact
 dir	codex-home/skills/apple-design	skills/apple-design	exact
 dir	codex-home/skills/coldstart	skills/coldstart	exact

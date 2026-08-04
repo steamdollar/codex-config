@@ -6,9 +6,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import stat
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
 
@@ -16,6 +18,43 @@ from typing import Iterator
 SOFT_PERCENT = 45
 HARD_PERCENT = 60
 CHUNK_SIZE = 64 * 1024
+AUDIT_OUTPUT_LIMIT = 12 * 1024
+
+TOOL_CALL_TYPES = {"custom_tool_call", "function_call", "tool_call"}
+TOOL_OUTPUT_TYPES = {
+    "custom_tool_call_output",
+    "function_call_output",
+    "tool_result",
+}
+COMPLETION_TYPES = {
+    "task_complete",
+    "turn_complete",
+    "turn_completed",
+    "response_completed",
+    "agent_turn_complete",
+}
+READ_COMMAND = re.compile(
+    r"(?<![\w-])(?:cat|sed|rg|grep|head|tail|awk|find|"
+    r"git\s+(?:show|diff|log|blame))(?:\s|$)",
+    re.IGNORECASE,
+)
+TRUNCATION_TEXT = re.compile(
+    r"(?:warning:\s*)?truncated(?:\s+output)?|"
+    r"output\s+(?:was\s+)?truncated|original\s+token\s+count|"
+    r"\[truncated\]",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class TurnAudit:
+    tool_calls: int
+    total_output_bytes: int
+    max_output_bytes: int
+    likely_reads: int
+    duplicate_command: bool
+    reader_spawned: bool
+    explicit_truncation: bool
 
 
 def reverse_lines(path: Path) -> Iterator[bytes]:
@@ -69,6 +108,190 @@ def latest_usage(path: Path) -> tuple[int, int] | None:
     except OSError:
         return None
     return None
+
+
+def transcript_events(path: Path) -> list[dict]:
+    events: list[dict] = []
+    with path.open("rb") as transcript:
+        for raw_line in transcript:
+            try:
+                event = json.loads(raw_line)
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if isinstance(event, dict):
+                events.append(event)
+    return events
+
+
+def event_payload(event: dict) -> dict | None:
+    payload = event.get("payload")
+    return payload if isinstance(payload, dict) else None
+
+
+def payload_type(event: dict) -> str | None:
+    payload = event_payload(event)
+    event_type = payload.get("type") if payload is not None else None
+    return event_type if isinstance(event_type, str) else None
+
+
+def is_user_event(event: dict) -> bool:
+    payload = event_payload(event)
+    if payload is None:
+        return False
+    if event.get("type") == "event_msg" and payload.get("type") == "user_message":
+        return True
+    return payload.get("type") == "message" and payload.get("role") == "user"
+
+
+def is_turn_start(event: dict) -> bool:
+    return event.get("type") == "event_msg" and payload_type(event) == "task_started"
+
+
+def is_turn_complete(event: dict) -> bool:
+    return event.get("type") == "event_msg" and payload_type(event) in COMPLETION_TYPES
+
+
+def latest_completed_turn(path: Path) -> list[dict] | None:
+    try:
+        events = transcript_events(path)
+    except OSError:
+        return None
+    completed_indexes = [
+        index for index, event in enumerate(events) if is_turn_complete(event)
+    ]
+    if not completed_indexes:
+        return None
+    complete_index = completed_indexes[-1]
+    start_indexes = [
+        index for index, event in enumerate(events[:complete_index]) if is_turn_start(event)
+    ]
+    if start_indexes:
+        start_index = start_indexes[-1]
+    else:
+        user_indexes = [
+            index for index, event in enumerate(events[:complete_index]) if is_user_event(event)
+        ]
+        if not user_indexes:
+            return None
+        start_index = user_indexes[-1]
+    turn = events[start_index : complete_index + 1]
+    return turn if any(is_user_event(event) for event in turn) else None
+
+
+def output_text_bytes(value: object) -> int:
+    if isinstance(value, str):
+        return len(value.encode("utf-8"))
+    if not isinstance(value, list):
+        return 0
+    total = 0
+    for item in value:
+        if isinstance(item, str):
+            total += len(item.encode("utf-8"))
+        elif isinstance(item, dict) and isinstance(item.get("text"), str):
+            total += len(item["text"].encode("utf-8"))
+    return total
+
+
+def has_truncation_marker(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(TRUNCATION_TEXT.search(value))
+    if isinstance(value, list):
+        return any(has_truncation_marker(item) for item in value)
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if (
+                isinstance(key, str)
+                and key.lower() in {"truncated", "is_truncated", "output_truncated"}
+                and nested is True
+            ):
+                return True
+            if has_truncation_marker(nested):
+                return True
+    return False
+
+
+def tool_command(payload: dict) -> str | None:
+    command = payload.get("input")
+    if isinstance(command, str):
+        return command
+    command = payload.get("command")
+    return command if isinstance(command, str) else None
+
+
+def is_likely_content_read(payload: dict) -> bool:
+    command = tool_command(payload)
+    return bool(command and READ_COMMAND.search(command))
+
+
+def is_reader_spawn(payload: dict) -> bool:
+    name = payload.get("name")
+    name_text = name.lower() if isinstance(name, str) else ""
+    if "spawn_agent" in name_text or "agents.spawn" in name_text:
+        return True
+    values = [payload.get(key) for key in ("input", "arguments", "agent_type", "task_name")]
+    text = " ".join(value for value in values if isinstance(value, str)).lower()
+    return bool(
+        re.search(r"spawn(?:ed)?(?:.{0,80})\breader\b", text)
+        or re.search(r"\breader\b(?:.{0,80})spawn", text)
+    )
+
+
+def turn_audit(path: Path) -> TurnAudit | None:
+    turn = latest_completed_turn(path)
+    if turn is None:
+        return None
+    commands: list[str] = []
+    total_output_bytes = 0
+    max_output_bytes = 0
+    likely_reads = 0
+    reader_spawned = False
+    explicit_truncation = False
+    tool_calls = 0
+    for event in turn:
+        payload = event_payload(event)
+        event_type = payload_type(event)
+        if payload is None:
+            continue
+        if event_type in TOOL_CALL_TYPES:
+            tool_calls += 1
+            command = tool_command(payload)
+            if command is not None:
+                commands.append(command)
+            if is_likely_content_read(payload):
+                likely_reads += 1
+            reader_spawned = reader_spawned or is_reader_spawn(payload)
+        elif event_type in TOOL_OUTPUT_TYPES:
+            output = payload.get("output")
+            output_bytes = output_text_bytes(output)
+            total_output_bytes += output_bytes
+            max_output_bytes = max(max_output_bytes, output_bytes)
+            explicit_truncation = explicit_truncation or has_truncation_marker(payload)
+    return TurnAudit(
+        tool_calls=tool_calls,
+        total_output_bytes=total_output_bytes,
+        max_output_bytes=max_output_bytes,
+        likely_reads=likely_reads,
+        duplicate_command=len(commands) != len(set(commands)),
+        reader_spawned=reader_spawned,
+        explicit_truncation=explicit_truncation,
+    )
+
+
+def audit_message(audit: TurnAudit) -> str | None:
+    violations: list[str] = []
+    if audit.tool_calls >= 12:
+        violations.append(f"tool calls={audit.tool_calls}")
+    if audit.total_output_bytes > AUDIT_OUTPUT_LIMIT:
+        violations.append(f"total output={audit.total_output_bytes:,} bytes")
+    if audit.max_output_bytes > AUDIT_OUTPUT_LIMIT:
+        violations.append(f"max output={audit.max_output_bytes:,} bytes")
+    if audit.likely_reads >= 3 and not audit.reader_spawned:
+        violations.append(f"likely reads={audit.likely_reads} without reader spawn")
+    if audit.duplicate_command:
+        violations.append("exact duplicate command")
+    if audit.explicit_truncation:
+        violations.append("explicit truncation marker")
+    return f"[Turn audit] {'; '.join(violations)}." if violations else None
 
 
 def thresholds(context_window: int) -> tuple[int, int] | None:
@@ -182,34 +405,38 @@ def main() -> int:
     if not isinstance(transcript_path, str) or not transcript_path:
         return 0
 
-    usage = latest_usage(Path(transcript_path))
-    if usage is None:
-        return 0
-    input_tokens, context_window = usage
-    configured_thresholds = thresholds(context_window)
-    if configured_thresholds is None:
-        return 0
-    soft, hard = configured_thresholds
+    transcript = Path(transcript_path)
+    messages: list[str] = []
+    usage = latest_usage(transcript)
+    if usage is not None:
+        input_tokens, context_window = usage
+        configured_thresholds = thresholds(context_window)
+        if configured_thresholds is not None:
+            soft, hard = configured_thresholds
+            level: str | None = None
+            if input_tokens >= hard:
+                level = "hard"
+                claimed = claim_warning(session_id, level, consume_soft=True)
+            elif input_tokens >= soft:
+                level = "soft"
+                claimed = claim_warning(session_id, level)
+            else:
+                claimed = False
+            if claimed and level is not None:
+                messages.append(warning_message(level, input_tokens, context_window))
 
-    if input_tokens >= hard:
-        level = "hard"
-        if not claim_warning(session_id, level, consume_soft=True):
-            return 0
-    elif input_tokens >= soft:
-        level = "soft"
-        if not claim_warning(session_id, level):
-            return 0
-    else:
+    audit = turn_audit(transcript)
+    if audit is not None:
+        audit_warning = audit_message(audit)
+        if audit_warning is not None:
+            messages.append(audit_warning)
+    if not messages:
         return 0
 
     output = {
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit",
-            "additionalContext": warning_message(
-                level,
-                input_tokens,
-                context_window,
-            ),
+            "additionalContext": "\n".join(messages),
         },
     }
     print(json.dumps(output, separators=(",", ":")))
