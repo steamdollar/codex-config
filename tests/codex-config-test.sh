@@ -189,7 +189,7 @@ test_incremental_restore_preserves_unchanged_links() {
         [[ ! -e "$home/$rel" && ! -L "$home/$rel" ]] || fail "incremental hook target remains: $rel"
         ;;
       *)
-        [[ -L "$home/$rel" && "$(readlink -- "$home/$rel")" == "$repo_root/$source" ]] || fail "unchanged managed link was removed: $rel"
+        [[ -L "$home/$rel" && "$(readlink "$home/$rel")" == "$repo_root/$source" ]] || fail "unchanged managed link was removed: $rel"
         ;;
     esac
   done < "$manifest"
@@ -289,14 +289,16 @@ PY
 
 test_fresh_config_fallback() {
   local work="$tmp_root/fallback-repo" home="$tmp_root/fallback-home" backup="$tmp_root/fallback-backup"
+  local canonical_work
   cp -a -- "$repo_root" "$work"
+  canonical_work=$(cd -- "$work" && pwd -P)
   rm -f -- "$work/config.toml"
   mkdir -p -- "$home"
   cp "$work/config.shared.toml" "$home/config.toml"
   printf '\n[projects."/tmp/기존\\\\path"]\ntrust_level = "trusted"\n' >> "$home/config.toml"
   printf '\n[hooks.state."/fallback/hooks.json:stop:0:0"]\ntrusted_hash = "sha256:fallback-hook-hash"\n' >> "$home/config.toml"
   "$work/scripts/codex-config.sh" install --codex-home "$home" --backup-dir "$backup" --apply >/dev/null
-  [[ -L "$home/config.toml" && "$(readlink -- "$home/config.toml")" == "$work/config.toml" ]] || fail "fresh install did not link generated config"
+  [[ -L "$home/config.toml" && "$(readlink "$home/config.toml")" == "$canonical_work/config.toml" ]] || fail "fresh install did not link generated config"
   python3 - "$work/config.toml" <<'PY'
 import sys
 import tomllib

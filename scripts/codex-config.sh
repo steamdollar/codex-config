@@ -168,7 +168,7 @@ preflight_git_hooks() {
 
 same_link() {
   local link_path=$1 expected=$2
-  [[ -L "$link_path" && "$(readlink -- "$link_path")" == "$expected" ]]
+  [[ -L "$link_path" && "$(readlink "$link_path")" == "$expected" ]]
 }
 
 compare_exact() {
