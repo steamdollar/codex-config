@@ -111,6 +111,16 @@ legacy_reader_source="$repo_root/codex-home/$legacy_reader_rel"
 legacy_reader_target="$codex_home/$legacy_reader_rel"
 legacy_reader_cleanup_required=false
 legacy_reader_moved=false
+retired_review_rel="REVIEW.md"
+retired_review_source="$repo_root/codex-home/$retired_review_rel"
+retired_review_target="$codex_home/$retired_review_rel"
+retired_review_cleanup_required=false
+retired_review_removed=false
+retired_sub_agents_rel="SUB_AGENTS.md"
+retired_sub_agents_source="$repo_root/codex-home/$retired_sub_agents_rel"
+retired_sub_agents_target="$codex_home/$retired_sub_agents_rel"
+retired_sub_agents_cleanup_required=false
+retired_sub_agents_removed=false
 
 declare -a kinds=()
 declare -a sources=()
@@ -188,6 +198,28 @@ preflight_legacy_reader_migration() {
   fi
 }
 
+preflight_retired_review_migration() {
+  if same_link "$retired_review_target" "$retired_review_source"; then
+    retired_review_cleanup_required=true
+    printf 'REMOVE retired managed link %s\n' "$retired_review_target"
+  elif [[ -L "$retired_review_target" ]]; then
+    printf 'KEEP foreign retired symlink %s -> %s\n' "$retired_review_target" "$(readlink "$retired_review_target")"
+  elif [[ -e "$retired_review_target" ]]; then
+    printf 'KEEP foreign retired target %s\n' "$retired_review_target"
+  fi
+}
+
+preflight_retired_sub_agents_migration() {
+  if same_link "$retired_sub_agents_target" "$retired_sub_agents_source"; then
+    retired_sub_agents_cleanup_required=true
+    printf 'REMOVE retired managed link %s\n' "$retired_sub_agents_target"
+  elif [[ -L "$retired_sub_agents_target" ]]; then
+    printf 'KEEP foreign retired symlink %s -> %s\n' "$retired_sub_agents_target" "$(readlink "$retired_sub_agents_target")"
+  elif [[ -e "$retired_sub_agents_target" ]]; then
+    printf 'KEEP foreign retired target %s\n' "$retired_sub_agents_target"
+  fi
+}
+
 compare_exact() {
   local kind=$1 source=$2 target=$3
   if [[ "$kind" == file ]]; then
@@ -199,6 +231,8 @@ compare_exact() {
 
 preflight_install() {
   local i kind source rel target
+  preflight_retired_review_migration
+  preflight_retired_sub_agents_migration
   preflight_legacy_reader_migration
   for i in "${!targets[@]}"; do
     kind=${kinds[$i]}
@@ -286,21 +320,27 @@ active_backup=""
 rollback_install() {
   local status=${1:-$?}
   trap - ERR INT TERM
-  if ((status != 0)) && [[ -n "$active_backup" ]]; then
-    printf 'ROLLBACK after failure, backup=%s\n' "$active_backup" >&2
+  if ((status != 0)) && { [[ -n "$active_backup" ]] || [[ "$retired_review_removed" == true ]] || [[ "$retired_sub_agents_removed" == true ]]; }; then
+    if [[ -n "$active_backup" ]]; then
+      printf 'ROLLBACK after failure, backup=%s\n' "$active_backup" >&2
+    else
+      printf 'ROLLBACK after failure (retired link)\n' >&2
+    fi
     local index rel target original
-    for ((index=${#changed_targets[@]} - 1; index >= 0; index--)); do
-      rel=${changed_targets[$index]}
-      target="$codex_home/$rel"
-      original="$active_backup/original/$rel"
-      rm -f -- "$target.codex-config.$$"
-      [[ ! -L "$target" ]] || rm -- "$target"
-      if [[ ${changed_had_original[$index]} == 1 && -e "$original" ]]; then
-        mkdir -p -- "$(dirname -- "$target")"
-        mv -- "$original" "$target"
-      fi
-    done
-    if [[ "$legacy_reader_moved" == true ]]; then
+    if [[ -n "$active_backup" ]]; then
+      for ((index=${#changed_targets[@]} - 1; index >= 0; index--)); do
+        rel=${changed_targets[$index]}
+        target="$codex_home/$rel"
+        original="$active_backup/original/$rel"
+        rm -f -- "$target.codex-config.$$"
+        [[ ! -L "$target" ]] || rm -- "$target"
+        if [[ ${changed_had_original[$index]} == 1 && -e "$original" ]]; then
+          mkdir -p -- "$(dirname -- "$target")"
+          mv -- "$original" "$target"
+        fi
+      done
+    fi
+    if [[ "$legacy_reader_moved" == true && -n "$active_backup" ]]; then
       local legacy_original="$active_backup/original/$legacy_reader_rel"
       if same_link "$legacy_reader_target" "$legacy_reader_source"; then
         rm -- "$legacy_reader_target"
@@ -312,19 +352,41 @@ rollback_install() {
         printf 'ROLLBACK preserved foreign legacy target %s\n' "$legacy_reader_target" >&2
       fi
     fi
+    if [[ "$retired_review_removed" == true && ! -e "$retired_review_target" && ! -L "$retired_review_target" ]]; then
+      mkdir -p -- "$(dirname -- "$retired_review_target")"
+      ln -s -- "$retired_review_source" "$retired_review_target"
+      printf 'ROLLBACK restored retired managed link %s\n' "$retired_review_target" >&2
+    elif [[ "$retired_review_removed" == true ]]; then
+      printf 'ROLLBACK preserved foreign retired target %s\n' "$retired_review_target" >&2
+    fi
+    if [[ "$retired_sub_agents_removed" == true && ! -e "$retired_sub_agents_target" && ! -L "$retired_sub_agents_target" ]]; then
+      mkdir -p -- "$(dirname -- "$retired_sub_agents_target")"
+      ln -s -- "$retired_sub_agents_source" "$retired_sub_agents_target"
+      printf 'ROLLBACK restored retired managed link %s\n' "$retired_sub_agents_target" >&2
+    elif [[ "$retired_sub_agents_removed" == true ]]; then
+      printf 'ROLLBACK preserved foreign retired target %s\n' "$retired_sub_agents_target" >&2
+    fi
   fi
   exit "$status"
 }
 
 install_apply() {
   local timestamp i source rel target original tmp had_original
-  local changes_required=false
+  local changes_required=false managed_changes_required=false
+  if [[ "$retired_review_cleanup_required" == true ]]; then
+    changes_required=true
+  fi
+  if [[ "$retired_sub_agents_cleanup_required" == true ]]; then
+    changes_required=true
+  fi
   if [[ "$legacy_reader_cleanup_required" == true ]]; then
     changes_required=true
+    managed_changes_required=true
   fi
   for i in "${!targets[@]}"; do
     if ! same_link "$codex_home/${targets[$i]}" "${sources[$i]}"; then
       changes_required=true
+      managed_changes_required=true
       break
     fi
   done
@@ -333,21 +395,39 @@ install_apply() {
     return
   fi
 
-  timestamp=$(date -u +%Y%m%dT%H%M%SZ)
-  if [[ -z "$backup_dir" ]]; then
-    backup_dir="$codex_home/backups/portable-codex-config/$timestamp"
+  if [[ "$managed_changes_required" == true ]]; then
+    timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+    if [[ -z "$backup_dir" ]]; then
+      backup_dir="$codex_home/backups/portable-codex-config/$timestamp"
+    fi
+    active_backup=$(canonical_path "$backup_dir")
+    backup_dir=$active_backup
+    [[ ! -e "$active_backup" ]] || fail "backup already exists: $active_backup"
+    mkdir -p -- "$active_backup/original"
+    [[ "$(filesystem_id "$codex_home")" == "$(filesystem_id "$active_backup")" ]] || fail "backup must be on the same filesystem as CODEX_HOME"
+    cp -a -- "$manifest" "$active_backup/manifest.tsv"
+    printf '%s\n' "$repo_root" > "$active_backup/repository-path"
+    : > "$active_backup/changed-targets.tsv"
   fi
-  active_backup=$(canonical_path "$backup_dir")
-  backup_dir=$active_backup
-  [[ ! -e "$active_backup" ]] || fail "backup already exists: $active_backup"
-  mkdir -p -- "$active_backup/original"
-  [[ "$(filesystem_id "$codex_home")" == "$(filesystem_id "$active_backup")" ]] || fail "backup must be on the same filesystem as CODEX_HOME"
-  cp -a -- "$manifest" "$active_backup/manifest.tsv"
-  printf '%s\n' "$repo_root" > "$active_backup/repository-path"
-  : > "$active_backup/changed-targets.tsv"
   trap 'rollback_install $?' ERR
   trap 'rollback_install 130' INT
   trap 'rollback_install 143' TERM
+
+  if [[ "$retired_review_cleanup_required" == true ]]; then
+    same_link "$retired_review_target" "$retired_review_source" \
+      || fail "retired symlink changed during install: $retired_review_target"
+    retired_review_removed=true
+    rm -- "$retired_review_target"
+    printf 'REMOVED retired managed link %s\n' "$retired_review_target"
+  fi
+
+  if [[ "$retired_sub_agents_cleanup_required" == true ]]; then
+    same_link "$retired_sub_agents_target" "$retired_sub_agents_source" \
+      || fail "retired symlink changed during install: $retired_sub_agents_target"
+    retired_sub_agents_removed=true
+    rm -- "$retired_sub_agents_target"
+    printf 'REMOVED retired managed link %s\n' "$retired_sub_agents_target"
+  fi
 
   if [[ "$legacy_reader_cleanup_required" == true ]]; then
     same_link "$legacy_reader_target" "$legacy_reader_source" \
@@ -384,7 +464,9 @@ install_apply() {
   done
   trap - ERR INT TERM
   active_backup=""
-  printf 'BACKUP %s\n' "$backup_dir"
+  if [[ "$managed_changes_required" == true ]]; then
+    printf 'BACKUP %s\n' "$backup_dir"
+  fi
 }
 
 declare -a restore_targets=()

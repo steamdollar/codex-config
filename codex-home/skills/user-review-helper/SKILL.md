@@ -228,7 +228,7 @@ Use this abbreviated shape:
 
 ## Boundaries
 
-- Do not use this skill to find bugs or perform a code review. Follow the workspace/global `REVIEW.md` workflow for that request.
+- Do not use this skill to find bugs or perform a code review. Follow `AGENTS.md`, which routes those requests to the bounded `reviewer` agent; this skill remains a review-session and reading-guide workflow.
 - Do not use it to archive human PR comments. Use the dedicated PR-comment reporting/archive skill.
 - Do not use it for a cold-start handoff prompt. Use `coldstart`.
 
