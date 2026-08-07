@@ -24,6 +24,7 @@ Priority order:
 - Literal wording edits that do not change behavior or policy may proceed directly.
 - Keep large changes atomic and easy to review or roll back.
 - Ask the user to run a command only when required access, authority, or external context is unavailable; provide the exact command or path and ask for the result.
+- Canonical-document override: The Primary must directly read user-provided requests, authoritative specs, policies, acceptance criteria, and decision documents when they control the task, regardless of length. This rule takes precedence over the Context Budget and `SUB_AGENTS.md` bulk-read routing. A `reader` may assist with appendices or completeness checks, but must not replace the Primary's first-hand reading.
 
 # Context Budget
 
