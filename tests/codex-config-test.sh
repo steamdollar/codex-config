@@ -32,7 +32,7 @@ for key, value in expected_config.items():
         raise SystemExit(f"config.shared.toml {key}: expected {value!r}, got {config.get(key)!r}")
 
 expected_roles = {
-    "luna-reader.toml": {
+    "reader.toml": {
         "name": "reader",
         "model": "gpt-5.6-luna",
         "model_reasoning_effort": "high",
@@ -56,6 +56,12 @@ expected_roles = {
         "model_reasoning_effort": "medium",
         "sandbox_mode": "read-only",
     },
+    "planner.toml": {
+        "name": "planner",
+        "model": "gpt-5.6-sol",
+        "model_reasoning_effort": "high",
+        "sandbox_mode": "read-only",
+    },
 }
 
 seen_names = set()
@@ -76,29 +82,33 @@ if "codex-home/agents/executor.toml\tagents/executor.toml\texact" not in manifes
     raise SystemExit("manifest does not install executor.toml")
 if "codex-home/agents/researcher.toml\tagents/researcher.toml\texact" not in manifest:
     raise SystemExit("manifest does not install researcher.toml")
+if "codex-home/agents/planner.toml\tagents/planner.toml\texact" not in manifest:
+    raise SystemExit("manifest does not install planner.toml")
+if "codex-home/agents/reader.toml\tagents/reader.toml\texact" not in manifest:
+    raise SystemExit("manifest does not install reader.toml")
+if "luna-reader" in manifest or "luna-reader" in (root / "README.md").read_text():
+    raise SystemExit("deprecated luna-reader agent reference is still managed or documented")
 
 sub_agents = (root / "codex-home" / "SUB_AGENTS.md").read_text()
 if (root / "codex-home" / "SUB_AGENTS_RUNTIME.md").exists():
     raise SystemExit("deprecated SUB_AGENTS_RUNTIME.md still exists")
 if "SUB_AGENTS_RUNTIME.md" in sub_agents or "SUB_AGENTS_RUNTIME.md" in manifest:
     raise SystemExit("deprecated SUB_AGENTS_RUNTIME.md is still managed or referenced")
-for selector in ("`reader`", "`researcher`", "`executor`", "`advisor`"):
+for selector in ("`reader`", "`researcher`", "`executor`", "`planner`", "`advisor`"):
     if selector not in sub_agents:
         raise SystemExit(f"SUB_AGENTS.md missing native selector {selector}")
-if "Automatic routing applies to `reader`, `researcher`, and `executor`." not in sub_agents:
-    raise SystemExit("SUB_AGENTS.md missing automatic researcher routing")
-if "exact `agent_type` (`reader`, `researcher`, `executor`, or user-requested `advisor`)" not in sub_agents:
-    raise SystemExit("SUB_AGENTS.md missing exact researcher agent_type contract")
+if "자동 routing은 `reader`, `researcher`, `executor`, `planner`에 적용한다." not in sub_agents:
+    raise SystemExit("SUB_AGENTS.md missing automatic planner routing")
+if "정확한 `agent_type`(`reader`, `researcher`, `executor`, `planner` 또는 사용자가 요청한 `advisor`)" not in sub_agents:
+    raise SystemExit("SUB_AGENTS.md missing exact planner agent_type contract")
 if 'fork_turns = "none"' not in sub_agents:
     raise SystemExit("SUB_AGENTS.md missing depth-isolated native delegation contract")
 for attestation_contract in (
-    "`parent_thread_id` and canonical `agent_path`",
+    "`parent_thread_id`와 canonical `agent_path`",
     "[DEGRADED: role/model not attested]",
 ):
     if attestation_contract not in sub_agents:
         raise SystemExit(f"SUB_AGENTS.md missing attestation contract: {attestation_contract}")
-if "luna-reader-worker" in manifest or "luna-reader-worker" in sub_agents:
-    raise SystemExit("deprecated luna-reader-worker is still managed or referenced")
 PY
 }
 
@@ -143,6 +153,32 @@ test_empty_install_verify_uninstall() {
 
   "$installer" uninstall --codex-home "$home" --apply >/dev/null
   assert_managed_links_absent "$home"
+}
+
+test_legacy_reader_migration() {
+  local home="$tmp_root/legacy-reader-home" backup="$tmp_root/legacy-reader-backup"
+  local old_target="$home/agents/luna-reader.toml"
+  local old_source="$repo_root/codex-home/agents/luna-reader.toml"
+  local new_target="$home/agents/reader.toml"
+  new_home "$home"
+  mkdir -p -- "$(dirname -- "$old_target")"
+  ln -s -- "$old_source" "$old_target"
+
+  "$installer" install --codex-home "$home" --backup-dir "$backup" --dry-run >/dev/null
+  [[ -L "$old_target" ]] || fail "legacy link was removed during dry-run"
+  "$installer" install --codex-home "$home" --backup-dir "$backup" --apply >/dev/null
+  [[ ! -e "$old_target" && ! -L "$old_target" ]] || fail "legacy managed link remains after migration"
+  [[ -L "$new_target" && "$(readlink "$new_target")" == "$repo_root/codex-home/agents/reader.toml" ]] || fail "reader link was not installed"
+
+  local foreign_home="$tmp_root/foreign-legacy-reader-home"
+  local foreign_target="$foreign_home/agents/luna-reader.toml"
+  local foreign_source="$tmp_root/foreign-reader.toml"
+  new_home "$foreign_home"
+  mkdir -p -- "$(dirname -- "$foreign_target")"
+  printf '%s\n' 'foreign' > "$foreign_source"
+  ln -s -- "$foreign_source" "$foreign_target"
+  "$installer" install --codex-home "$foreign_home" --apply >/dev/null
+  [[ -L "$foreign_target" && "$(readlink "$foreign_target")" == "$foreign_source" ]] || fail "foreign legacy link was removed"
 }
 
 test_backup_restore() {
@@ -207,6 +243,8 @@ test_rollback_after_link_failure() {
     cp -a -- "$repo_root/$source" "$home/$rel"
   done < "$manifest"
   mkdir -p -- "$fake_bin"
+  mkdir -p -- "$home/agents"
+  ln -s -- "$repo_root/codex-home/agents/luna-reader.toml" "$home/agents/luna-reader.toml"
   real_mv=$(command -v mv)
   {
     printf '%s\n' '#!/usr/bin/env bash'
@@ -222,6 +260,7 @@ test_rollback_after_link_failure() {
   fi
   grep -q 'ROLLBACK after failure' "$tmp_root/rollback.err" || fail "rollback was not reported"
   assert_regular_parity "$home"
+  [[ -L "$home/agents/luna-reader.toml" && "$(readlink "$home/agents/luna-reader.toml")" == "$repo_root/codex-home/agents/luna-reader.toml" ]] || fail "legacy link was not restored after rollback"
   [[ -z "$(find "$home" -name '*.codex-config.*' -print -quit)" ]] || fail "temporary link remained after rollback"
 }
 
@@ -336,6 +375,7 @@ test_config_sync
 test_fresh_config_fallback
 test_hook_activation
 test_empty_install_verify_uninstall
+test_legacy_reader_migration
 test_backup_restore
 test_incremental_restore_preserves_unchanged_links
 test_rollback_after_link_failure

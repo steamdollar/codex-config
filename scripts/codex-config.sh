@@ -106,6 +106,12 @@ done
 codex_home=$(canonical_path "$codex_home")
 [[ "$codex_home" = /* && "$codex_home" != / ]] || fail "unsafe CODEX_HOME: $codex_home"
 
+legacy_reader_rel="agents/luna-reader.toml"
+legacy_reader_source="$repo_root/codex-home/$legacy_reader_rel"
+legacy_reader_target="$codex_home/$legacy_reader_rel"
+legacy_reader_cleanup_required=false
+legacy_reader_moved=false
+
 declare -a kinds=()
 declare -a sources=()
 declare -a targets=()
@@ -171,6 +177,17 @@ same_link() {
   [[ -L "$link_path" && "$(readlink "$link_path")" == "$expected" ]]
 }
 
+preflight_legacy_reader_migration() {
+  if same_link "$legacy_reader_target" "$legacy_reader_source"; then
+    legacy_reader_cleanup_required=true
+    printf 'REMOVE legacy managed link %s\n' "$legacy_reader_target"
+  elif [[ -L "$legacy_reader_target" ]]; then
+    printf 'KEEP foreign legacy symlink %s -> %s\n' "$legacy_reader_target" "$(readlink "$legacy_reader_target")"
+  elif [[ -e "$legacy_reader_target" ]]; then
+    printf 'KEEP foreign legacy target %s\n' "$legacy_reader_target"
+  fi
+}
+
 compare_exact() {
   local kind=$1 source=$2 target=$3
   if [[ "$kind" == file ]]; then
@@ -182,6 +199,7 @@ compare_exact() {
 
 preflight_install() {
   local i kind source rel target
+  preflight_legacy_reader_migration
   for i in "${!targets[@]}"; do
     kind=${kinds[$i]}
     source=${sources[$i]}
@@ -282,6 +300,18 @@ rollback_install() {
         mv -- "$original" "$target"
       fi
     done
+    if [[ "$legacy_reader_moved" == true ]]; then
+      local legacy_original="$active_backup/original/$legacy_reader_rel"
+      if same_link "$legacy_reader_target" "$legacy_reader_source"; then
+        rm -- "$legacy_reader_target"
+      fi
+      if [[ ! -e "$legacy_reader_target" && ! -L "$legacy_reader_target" && -L "$legacy_original" ]]; then
+        mkdir -p -- "$(dirname -- "$legacy_reader_target")"
+        mv -- "$legacy_original" "$legacy_reader_target"
+      elif [[ -e "$legacy_reader_target" || -L "$legacy_reader_target" ]]; then
+        printf 'ROLLBACK preserved foreign legacy target %s\n' "$legacy_reader_target" >&2
+      fi
+    fi
   fi
   exit "$status"
 }
@@ -289,6 +319,9 @@ rollback_install() {
 install_apply() {
   local timestamp i source rel target original tmp had_original
   local changes_required=false
+  if [[ "$legacy_reader_cleanup_required" == true ]]; then
+    changes_required=true
+  fi
   for i in "${!targets[@]}"; do
     if ! same_link "$codex_home/${targets[$i]}" "${sources[$i]}"; then
       changes_required=true
@@ -315,6 +348,16 @@ install_apply() {
   trap 'rollback_install $?' ERR
   trap 'rollback_install 130' INT
   trap 'rollback_install 143' TERM
+
+  if [[ "$legacy_reader_cleanup_required" == true ]]; then
+    same_link "$legacy_reader_target" "$legacy_reader_source" \
+      || fail "legacy symlink changed during install: $legacy_reader_target"
+    local legacy_original="$active_backup/original/$legacy_reader_rel"
+    mkdir -p -- "$(dirname -- "$legacy_original")"
+    mv -- "$legacy_reader_target" "$legacy_original"
+    legacy_reader_moved=true
+    printf 'REMOVED legacy managed link %s\n' "$legacy_reader_target"
+  fi
 
   for i in "${!targets[@]}"; do
     source=${sources[$i]}
