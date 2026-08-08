@@ -5,9 +5,7 @@ file	codex-home/hooks.json	hooks.json	exact
 file	codex-home/hooks/context-budget.py	hooks/context-budget.py	exact
 file	codex-home/agents/reader.toml	agents/reader.toml	exact
 file	codex-home/agents/executor.toml	agents/executor.toml	exact
-file	codex-home/agents/advisor.toml	agents/advisor.toml	exact
 file	codex-home/agents/researcher.toml	agents/researcher.toml	exact
-file	codex-home/agents/planner.toml	agents/planner.toml	exact
 file	codex-home/agents/reviewer.toml	agents/reviewer.toml	exact
 file	codex-home/rules/default.rules	rules/default.rules	exact
 dir	codex-home/skills/apple-design	skills/apple-design	exact

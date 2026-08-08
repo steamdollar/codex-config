@@ -9,7 +9,7 @@ symlinks; managed skills and runtime state stay local.
 - Root guidance: `AGENTS.md`
 - Shared machine configuration: `config.shared.toml`; machine-local `config.toml`
 - Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
-- Custom-agent role bindings: `advisor.toml`, `reader.toml`, `executor.toml`, `researcher.toml`, `planner.toml`, `reviewer.toml`
+- Custom-agent role bindings: `reader.toml`, `executor.toml`, `researcher.toml`, `reviewer.toml`
 - Custom rule: `default.rules`
 - Five user-authored skills listed in `manifest.tsv`
 
@@ -45,18 +45,19 @@ blocks the push; `git push --no-verify` is the explicit emergency bypass.
 
 Native custom agents use Codex's `MultiAgentV2` interface under the custom
 `agents` namespace. This exposes the `agent_type` selector that the reserved
-`collaboration` namespace hides. Runtime roles are `reader`, `researcher`,
-`advisor`, `executor`, `planner`, and `reviewer`; reader and executor bind to
-Luna, researcher binds to Terra, and advisor, planner, and reviewer bind to Sol.
-Runtime identity comes from each TOML `name`; `advisor` is selected only on an
-explicit user request, while `planner` is automatically routed for tasks that
-require a plan and `reviewer` for explicit code, design, or instruction/policy/config
-review.
+`collaboration` namespace hides. The repository-managed custom roles are
+`reader`, `researcher`, `executor`, and `reviewer`; other custom or unmanaged
+files under `~/.codex/agents`, as well as Codex built-in roles, are outside this
+repository's managed scope. Reader and executor bind to Luna, researcher binds
+to Terra, and reviewer binds to Sol.
+Runtime identity comes from each TOML `name`; `reviewer` is automatically routed
+for explicit code, design, or instruction/policy/config review.
 Role contracts live in `agents/*.toml` and are therefore stable when a model
-binding changes. Reload the VS
-Code window after changing this configuration, then start a new session so
-`agents.spawn_agent` exposes `reader`, `researcher`, `advisor`, `executor`,
-`planner`, and `reviewer` role selection. Explicit review analysis is defined by
+binding changes. Restart or reload the local Codex client (desktop/CLI/IDE; for
+example, reload the VS Code window) after changing this configuration, then
+start a new session so
+`agents.spawn_agent` exposes `reader`, `researcher`, `executor`, and `reviewer`
+role selection. Explicit review analysis is defined by
 `reviewer.toml` as a single-pass, risk-gated route with bounded evidence and no
 recursive reviewer/executor loop.
 

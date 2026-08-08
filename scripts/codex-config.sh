@@ -121,6 +121,21 @@ retired_sub_agents_source="$repo_root/codex-home/$retired_sub_agents_rel"
 retired_sub_agents_target="$codex_home/$retired_sub_agents_rel"
 retired_sub_agents_cleanup_required=false
 retired_sub_agents_removed=false
+retired_planner_rel="agents/planner.toml"
+retired_planner_source="$repo_root/codex-home/$retired_planner_rel"
+retired_planner_target="$codex_home/$retired_planner_rel"
+retired_planner_cleanup_required=false
+retired_planner_removed=false
+retired_advisor_rel="agents/advisor.toml"
+retired_advisor_source="$repo_root/codex-home/$retired_advisor_rel"
+retired_advisor_target="$codex_home/$retired_advisor_rel"
+retired_advisor_cleanup_required=false
+retired_advisor_removed=false
+retired_terra_executor_rel="agents/terra-executor.toml"
+retired_terra_executor_source="$repo_root/codex-home/$retired_terra_executor_rel"
+retired_terra_executor_target="$codex_home/$retired_terra_executor_rel"
+retired_terra_executor_cleanup_required=false
+retired_terra_executor_removed=false
 
 declare -a kinds=()
 declare -a sources=()
@@ -220,6 +235,39 @@ preflight_retired_sub_agents_migration() {
   fi
 }
 
+preflight_retired_planner_migration() {
+  if same_link "$retired_planner_target" "$retired_planner_source"; then
+    retired_planner_cleanup_required=true
+    printf 'REMOVE retired managed link %s\n' "$retired_planner_target"
+  elif [[ -L "$retired_planner_target" ]]; then
+    printf 'KEEP foreign retired symlink %s -> %s\n' "$retired_planner_target" "$(readlink "$retired_planner_target")"
+  elif [[ -e "$retired_planner_target" ]]; then
+    printf 'KEEP foreign retired target %s\n' "$retired_planner_target"
+  fi
+}
+
+preflight_retired_advisor_migration() {
+  if same_link "$retired_advisor_target" "$retired_advisor_source"; then
+    retired_advisor_cleanup_required=true
+    printf 'REMOVE retired managed link %s\n' "$retired_advisor_target"
+  elif [[ -L "$retired_advisor_target" ]]; then
+    printf 'KEEP foreign retired symlink %s -> %s\n' "$retired_advisor_target" "$(readlink "$retired_advisor_target")"
+  elif [[ -e "$retired_advisor_target" ]]; then
+    printf 'KEEP foreign retired target %s\n' "$retired_advisor_target"
+  fi
+}
+
+preflight_retired_terra_executor_migration() {
+  if same_link "$retired_terra_executor_target" "$retired_terra_executor_source"; then
+    retired_terra_executor_cleanup_required=true
+    printf 'REMOVE retired managed link %s\n' "$retired_terra_executor_target"
+  elif [[ -L "$retired_terra_executor_target" ]]; then
+    printf 'KEEP foreign retired symlink %s -> %s\n' "$retired_terra_executor_target" "$(readlink "$retired_terra_executor_target")"
+  elif [[ -e "$retired_terra_executor_target" ]]; then
+    printf 'KEEP foreign retired target %s\n' "$retired_terra_executor_target"
+  fi
+}
+
 compare_exact() {
   local kind=$1 source=$2 target=$3
   if [[ "$kind" == file ]]; then
@@ -233,6 +281,9 @@ preflight_install() {
   local i kind source rel target
   preflight_retired_review_migration
   preflight_retired_sub_agents_migration
+  preflight_retired_planner_migration
+  preflight_retired_advisor_migration
+  preflight_retired_terra_executor_migration
   preflight_legacy_reader_migration
   for i in "${!targets[@]}"; do
     kind=${kinds[$i]}
@@ -320,7 +371,7 @@ active_backup=""
 rollback_install() {
   local status=${1:-$?}
   trap - ERR INT TERM
-  if ((status != 0)) && { [[ -n "$active_backup" ]] || [[ "$retired_review_removed" == true ]] || [[ "$retired_sub_agents_removed" == true ]]; }; then
+  if ((status != 0)) && { [[ -n "$active_backup" ]] || [[ "$retired_review_removed" == true ]] || [[ "$retired_sub_agents_removed" == true ]] || [[ "$retired_planner_removed" == true ]] || [[ "$retired_advisor_removed" == true ]] || [[ "$retired_terra_executor_removed" == true ]]; }; then
     if [[ -n "$active_backup" ]]; then
       printf 'ROLLBACK after failure, backup=%s\n' "$active_backup" >&2
     else
@@ -366,6 +417,27 @@ rollback_install() {
     elif [[ "$retired_sub_agents_removed" == true ]]; then
       printf 'ROLLBACK preserved foreign retired target %s\n' "$retired_sub_agents_target" >&2
     fi
+    if [[ "$retired_planner_removed" == true && ! -e "$retired_planner_target" && ! -L "$retired_planner_target" ]]; then
+      mkdir -p -- "$(dirname -- "$retired_planner_target")"
+      ln -s -- "$retired_planner_source" "$retired_planner_target"
+      printf 'ROLLBACK restored retired managed link %s\n' "$retired_planner_target" >&2
+    elif [[ "$retired_planner_removed" == true ]]; then
+      printf 'ROLLBACK preserved foreign retired target %s\n' "$retired_planner_target" >&2
+    fi
+    if [[ "$retired_advisor_removed" == true && ! -e "$retired_advisor_target" && ! -L "$retired_advisor_target" ]]; then
+      mkdir -p -- "$(dirname -- "$retired_advisor_target")"
+      ln -s -- "$retired_advisor_source" "$retired_advisor_target"
+      printf 'ROLLBACK restored retired managed link %s\n' "$retired_advisor_target" >&2
+    elif [[ "$retired_advisor_removed" == true ]]; then
+      printf 'ROLLBACK preserved foreign retired target %s\n' "$retired_advisor_target" >&2
+    fi
+    if [[ "$retired_terra_executor_removed" == true && ! -e "$retired_terra_executor_target" && ! -L "$retired_terra_executor_target" ]]; then
+      mkdir -p -- "$(dirname -- "$retired_terra_executor_target")"
+      ln -s -- "$retired_terra_executor_source" "$retired_terra_executor_target"
+      printf 'ROLLBACK restored retired managed link %s\n' "$retired_terra_executor_target" >&2
+    elif [[ "$retired_terra_executor_removed" == true ]]; then
+      printf 'ROLLBACK preserved foreign retired target %s\n' "$retired_terra_executor_target" >&2
+    fi
   fi
   exit "$status"
 }
@@ -377,6 +449,15 @@ install_apply() {
     changes_required=true
   fi
   if [[ "$retired_sub_agents_cleanup_required" == true ]]; then
+    changes_required=true
+  fi
+  if [[ "$retired_planner_cleanup_required" == true ]]; then
+    changes_required=true
+  fi
+  if [[ "$retired_advisor_cleanup_required" == true ]]; then
+    changes_required=true
+  fi
+  if [[ "$retired_terra_executor_cleanup_required" == true ]]; then
     changes_required=true
   fi
   if [[ "$legacy_reader_cleanup_required" == true ]]; then
@@ -427,6 +508,30 @@ install_apply() {
     retired_sub_agents_removed=true
     rm -- "$retired_sub_agents_target"
     printf 'REMOVED retired managed link %s\n' "$retired_sub_agents_target"
+  fi
+
+  if [[ "$retired_planner_cleanup_required" == true ]]; then
+    same_link "$retired_planner_target" "$retired_planner_source" \
+      || fail "retired symlink changed during install: $retired_planner_target"
+    retired_planner_removed=true
+    rm -- "$retired_planner_target"
+    printf 'REMOVED retired managed link %s\n' "$retired_planner_target"
+  fi
+
+  if [[ "$retired_advisor_cleanup_required" == true ]]; then
+    same_link "$retired_advisor_target" "$retired_advisor_source" \
+      || fail "retired symlink changed during install: $retired_advisor_target"
+    retired_advisor_removed=true
+    rm -- "$retired_advisor_target"
+    printf 'REMOVED retired managed link %s\n' "$retired_advisor_target"
+  fi
+
+  if [[ "$retired_terra_executor_cleanup_required" == true ]]; then
+    same_link "$retired_terra_executor_target" "$retired_terra_executor_source" \
+      || fail "retired symlink changed during install: $retired_terra_executor_target"
+    retired_terra_executor_removed=true
+    rm -- "$retired_terra_executor_target"
+    printf 'REMOVED retired managed link %s\n' "$retired_terra_executor_target"
   fi
 
   if [[ "$legacy_reader_cleanup_required" == true ]]; then

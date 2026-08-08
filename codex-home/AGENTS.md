@@ -6,21 +6,26 @@
 
 # 에이전트 작업 흐름
 
-- Primary는 사용자 소통, 범위 결정과 승인, 작업 기준 문서 확인, 위임, 핵심 근거 점검, 결과 검수와 최종 보고를 담당한다.
+- Primary는 사용자 소통, 범위 결정과 승인, 작업 기준 문서 확인, 실행 plan 작성, 위임, 핵심 근거 점검, 결과 검수와 최종 보고를 담당한다.
+
+- scope/dependency/risk가 단순하고 직접적인 작업은 별도 plan 없이 진행할 수 있다.
 
 | 작업 | 담당 |
 | --- | --- |
-| 실행 plan 작성 | `planner` |
 | 범위가 제한된 대량·local 자료 읽기와 추출, bulk/exploratory/multi-stream log 읽기 | `reader` |
 | 외부 또는 공개 자료 research | `researcher` |
 | 코드·설계·지침·설정의 문제·위험 검토와 근거 수집 | `reviewer` |
 | 승인된 atomic change와 targeted test | `executor` |
 
+- 전역 자동 라우팅은 위 표에 정의된 `reader`·`researcher`·`reviewer`·`executor`만 사용하며, 그 밖의 Codex built-in·unmanaged custom·project-specific role은 사용자가 명시적으로 요청하거나 적용되는 project/skill 지침이 명시적으로 요청할 때만 사용한다.
+
 - 대화 의존성이 높거나 문구만 바꾸는 작은 작업은 위임이 context 또는 risk 측면에서 실질적인 이점을 주지 않을 때만 Primary가 직접 수행할 수 있다.
 - `reviewer`를 제외한 role의 spawn 또는 attestation이 불가하면 `[DEGRADED: role/model not attested]`를 보고하고 bounded Primary fallback을 사용하며 다른 role로 조용히 대체하지 않는다.
-- delegation depth는 1로 제한하며 repository에 write하는 `executor`는 동시에 하나만 둔다.
+- delegation depth는 1로 제한하며, 선후·입력·범위·판단 의존성이 없는 currently-ready 작업은 role과 무관하게 runtime concurrency 한도 내에서 병렬 실행한다. 서로 다른 role, 같은 role의 여러 instance, 혼합 구성이 모두 같은 규칙을 따른다.
+- Primary가 disjoint ownership을 명시하고 shared mutable target/state가 겹치지 않으면 write 작업도 병렬 실행할 수 있다. 같은 파일뿐 아니라 생성물·lockfile/manifest·migration/fixture·build output·외부 상태 같은 간접 shared state 충돌도 확인한다.
+- 결과가 다음 작업의 input·scope·판단을 좌우하거나 shared mutable state가 겹치면 작업 dependency graph 순서로 직렬화한다. 예상치 못한 overlap은 덮어쓰거나 되돌리지 말고 affected task를 재조정하며, material decision일 때만 사용자에게 묻는다.
+- 병렬 write가 끝나면 Primary가 combined diff와 relevant integration validation을 확인한다.
 - scope와 risk가 유지되는 bounded follow-up에는 동일한 non-review agent를 재사용한다.
-- 둘 이상의 sub-agent 작업이 서로의 결과에 의존하지 않고 shared write target도 없으면 병렬로 실행한다. 한 작업의 결과가 다른 작업의 input, scope 또는 판단을 좌우하면 dependency 순서대로 실행한다.
 
 # Primary 소통·상태 계약
 

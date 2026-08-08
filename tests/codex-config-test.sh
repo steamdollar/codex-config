@@ -22,6 +22,13 @@ import tomllib
 root = Path(sys.argv[1])
 if (root / "codex-home" / "REVIEW.md").exists():
     raise SystemExit("retired REVIEW.md source still exists")
+if (root / "codex-home" / "agents" / "planner.toml").exists():
+    raise SystemExit("retired planner source still exists")
+if (root / "codex-home" / "agents" / "advisor.toml").exists():
+    raise SystemExit("retired advisor source still exists")
+terra_source = root / "codex-home" / "agents" / "terra-executor.toml"
+if terra_source.exists() or terra_source.is_symlink():
+    raise SystemExit("retired terra-executor source still exists")
 with (root / "config.shared.toml").open("rb") as f:
     config = tomllib.load(f)
 
@@ -46,22 +53,10 @@ expected_roles = {
         "model_reasoning_effort": "xhigh",
         "sandbox_mode": "workspace-write",
     },
-    "advisor.toml": {
-        "name": "advisor",
-        "model": "gpt-5.6-sol",
-        "model_reasoning_effort": "high",
-        "sandbox_mode": "read-only",
-    },
     "researcher.toml": {
         "name": "researcher",
         "model": "gpt-5.6-terra",
         "model_reasoning_effort": "medium",
-        "sandbox_mode": "read-only",
-    },
-    "planner.toml": {
-        "name": "planner",
-        "model": "gpt-5.6-sol",
-        "model_reasoning_effort": "high",
         "sandbox_mode": "read-only",
     },
     "reviewer.toml": {
@@ -76,6 +71,10 @@ seen_names = set()
 for filename, expected in expected_roles.items():
     with (root / "codex-home" / "agents" / filename).open("rb") as f:
         role = tomllib.load(f)
+    if not str(role.get("description", "")).strip():
+        raise SystemExit(f"{filename} description must be nonempty")
+    if not str(role.get("developer_instructions", "")).strip():
+        raise SystemExit(f"{filename} developer_instructions must be nonempty")
     for key, value in expected.items():
         if role.get(key) != value:
             raise SystemExit(f"{filename} {key}: expected {value!r}, got {role.get(key)!r}")
@@ -86,14 +85,14 @@ for filename, expected in expected_roles.items():
 manifest = (root / "manifest.tsv").read_text()
 if "codex-home/REVIEW.md" in manifest or "\tREVIEW.md\t" in manifest:
     raise SystemExit("retired REVIEW.md is still managed")
-if "codex-home/agents/advisor.toml\tagents/advisor.toml\texact" not in manifest:
-    raise SystemExit("manifest does not install advisor.toml")
+if "codex-home/agents/advisor.toml\tagents/advisor.toml\texact" in manifest:
+    raise SystemExit("retired advisor.toml is still managed")
+if "terra-executor" in manifest:
+    raise SystemExit("retired terra-executor.toml is still managed")
 if "codex-home/agents/executor.toml\tagents/executor.toml\texact" not in manifest:
     raise SystemExit("manifest does not install executor.toml")
 if "codex-home/agents/researcher.toml\tagents/researcher.toml\texact" not in manifest:
     raise SystemExit("manifest does not install researcher.toml")
-if "codex-home/agents/planner.toml\tagents/planner.toml\texact" not in manifest:
-    raise SystemExit("manifest does not install planner.toml")
 if "codex-home/agents/reader.toml\tagents/reader.toml\texact" not in manifest:
     raise SystemExit("manifest does not install reader.toml")
 if "codex-home/agents/reviewer.toml\tagents/reviewer.toml\texact" not in manifest:
@@ -103,16 +102,28 @@ if "luna-reader" in manifest or "luna-reader" in (root / "README.md").read_text(
 
 agents = (root / "codex-home" / "AGENTS.md").read_text()
 readme = (root / "README.md").read_text()
+if "advisor.toml" in readme or "`advisor`" in readme:
+    raise SystemExit("retired advisor role is still documented")
 if "REVIEW.md" in agents or "REVIEW.md" in readme:
     raise SystemExit("retired REVIEW.md is still referenced by guidance")
 if (root / "codex-home" / "SUB_AGENTS.md").exists():
     raise SystemExit("retired SUB_AGENTS.md source still exists")
 if "SUB_AGENTS.md" in manifest or "SUB_AGENTS.md" in readme:
     raise SystemExit("retired SUB_AGENTS.md is still managed or documented")
+if "terra-executor" in readme or "terra-executor" in agents:
+    raise SystemExit("retired terra-executor is still documented")
 if "Root guidance: `AGENTS.md`" not in readme:
     raise SystemExit("README does not identify AGENTS.md as the only root guidance")
 if "Role contracts live in `agents/*.toml`" not in readme:
     raise SystemExit("README does not identify agent TOMLs as role contracts")
+if "The repository-managed custom roles are" not in readme:
+    raise SystemExit("README does not identify repository-managed custom roles")
+if "Runtime roles are" in readme:
+    raise SystemExit("README overstates repository roles as the only runtime roles")
+if "Restart or reload the local Codex client (desktop/CLI/IDE" not in readme:
+    raise SystemExit("README does not describe client reload and new-session behavior")
+if "scope/dependency/risk가 단순하고 직접적인 작업은 별도 plan 없이 진행할 수 있다." not in agents:
+    raise SystemExit("AGENTS.md does not define the no-plan simple-task default")
 for contract in (
     "`reviewer`를 한 번 호출한다",
     "넓은 범위의 동작에 영향을 주는 변경만 자동으로 검토한다",
@@ -129,11 +140,62 @@ if "role 또는 model을 검증할 수 없으면" in agents:
     raise SystemExit("AGENTS.md retains generic attestation fallback duplicate")
 for contract in (
     "`reviewer`를 제외한 role의 spawn 또는 attestation이 불가하면 `[DEGRADED: role/model not attested]`를 보고하고 bounded Primary fallback을 사용하며 다른 role로 조용히 대체하지 않는다.",
-    "delegation depth는 1로 제한하며 repository에 write하는 `executor`는 동시에 하나만 둔다.",
+    "전역 자동 라우팅은 위 표에 정의된",
+    "`reader`·`researcher`·`reviewer`·`executor`만 사용하며",
+    "Codex built-in·unmanaged custom·project-specific role은",
+    "사용자가 명시적으로 요청하거나 적용되는 project/skill 지침이 명시적으로 요청할 때만 사용한다.",
+    "delegation depth는 1로 제한하며, 선후·입력·범위·판단 의존성이 없는 currently-ready 작업은 role과 무관하게 runtime concurrency 한도 내에서 병렬 실행한다. 서로 다른 role, 같은 role의 여러 instance, 혼합 구성이 모두 같은 규칙을 따른다.",
+    "Primary가 disjoint ownership을 명시하고 shared mutable target/state가 겹치지 않으면 write 작업도 병렬 실행할 수 있다. 같은 파일뿐 아니라 생성물·lockfile/manifest·migration/fixture·build output·외부 상태 같은 간접 shared state 충돌도 확인한다.",
+    "결과가 다음 작업의 input·scope·판단을 좌우하거나 shared mutable state가 겹치면 작업 dependency graph 순서로 직렬화한다. 예상치 못한 overlap은 덮어쓰거나 되돌리지 말고 affected task를 재조정하며, material decision일 때만 사용자에게 묻는다.",
+    "병렬 write가 끝나면 Primary가 combined diff와 relevant integration validation을 확인한다.",
     "scope와 risk가 유지되는 bounded follow-up에는 동일한 non-review agent를 재사용한다.",
 ):
     if contract not in agents:
         raise SystemExit(f"AGENTS.md thin orchestration contract missing: {contract}")
+if "repository에 write하는 `executor`는 동시에 하나만 둔다" in agents:
+    raise SystemExit("AGENTS.md retains executor-only write serialization")
+PY
+
+  python3 - "$repo_root" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+contracts = {
+    "reader.toml": (
+        "Primary agent가 위임한 범위가 제한된 로컬 읽기 작업만 맡는다.",
+        "파일을 편집하거나 사용자에게 연락하거나",
+        "status: complete, partial, or needs_scope",
+    ),
+    "researcher.toml": (
+        "범위가 제한된 외부 또는 공개 조사만 맡는다.",
+        "파일을 편집하거나 외부 시스템을 변경하거나",
+        "status: complete, partial, or needs_scope",
+    ),
+    "executor.toml": (
+        "승인된 원자적 구현 단계 정확히 하나만 맡는다.",
+        "사용자에게 연락하거나 user-facing/final 결정을 내리거나 scope를 넓히거나",
+        "`status`는 변경과 관련 검증이",
+    ),
+}
+for filename, phrases in contracts.items():
+    text = (root / "codex-home" / "agents" / filename).read_text()
+    for phrase in phrases:
+        if phrase not in text:
+            raise SystemExit(f"{filename} contract missing: {phrase}")
+
+executor = (root / "codex-home" / "agents" / "executor.toml").read_text()
+for phrase in (
+    "예상치 못한 overlap 또는 shared mutable state 충돌",
+    "덮어쓰거나 되돌리지 않는다",
+    "`status = partial`과 deviation",
+    "material decision이 아닌 한",
+    "실패 판단에 필요한 최소 failure lines",
+):
+    if phrase not in executor:
+        raise SystemExit(f"executor overlap/output contract missing: {phrase}")
+if "최대 120" in executor or "at most 120" in executor:
+    raise SystemExit("executor retains an arbitrary failure-line cap")
 PY
 
   python3 - "$repo_root/codex-home/agents/reviewer.toml" <<'PY'
@@ -144,26 +206,30 @@ with open(sys.argv[1], "rb") as f:
     reviewer = tomllib.load(f)
 instructions = reviewer["developer_instructions"]
 for phrase in (
-    "bounded changed diff or bounded reviewed artifact",
-    "acceptance criteria",
-    "clarification required",
-    "targeted",
-    "comprehensive",
-    "Do nothing",
-    "at most 3 findings",
-    "proven issue",
-    "risk",
-    "unknown",
-    "path:line",
-    "remediation gate",
-    "no recursive reviewer/executor loop",
-    "exclusive return schema",
-    "no findings",
+    "범위가 제한된 변경 diff, 범위가 제한된 검토 대상",
+    "인수 기준이 누락된 경우",
+    "기존 아키텍처와 설계 패턴에 맞는지",
+    "구현 패턴 적합성은 검토의 일부다",
+    "coverage label이 `targeted`인지 `comprehensive`인지",
+    "`needs_scope`",
+    "`status` = `complete`, `partial`, 또는 `needs_scope`",
+    "`outcome` = `findings` 또는 `no_findings`",
+    "`proven issue` 또는 `credible risk`",
+    "unknown은 결함이 아닌 잔여 위험이다",
+    "`path:line`",
+    "`remediation gate`인",
+    "`auto-fix eligible` 또는 `user decision required`",
+    "두 번째 또는 재귀적인 reviewer/executor 루프를",
 ):
     if phrase not in instructions:
         raise SystemExit(f"reviewer contract missing: {phrase}")
-if instructions.count("Do nothing") < 2:
-    raise SystemExit("reviewer contract does not enforce Do nothing options")
+for retired in (
+    "clarification required",
+    "at most 3 findings",
+    "exclusive return schema",
+):
+    if retired in instructions:
+        raise SystemExit(f"reviewer contract retains retired behavior: {retired}")
 if reviewer["model"] != "gpt-5.6-sol" or reviewer["model_reasoning_effort"] != "high" or reviewer["sandbox_mode"] != "read-only":
     raise SystemExit("reviewer runtime binding changed")
 PY
@@ -320,6 +386,141 @@ test_retired_sub_agents_migration() {
   cmp -s "$regular_target" "$foreign_source" || fail "regular retired SUB_AGENTS.md target changed"
 }
 
+test_retired_planner_migration() {
+  local dry_home="$tmp_root/retired-planner-dry-home"
+  local dry_target="$dry_home/agents/planner.toml"
+  local owned_home="$tmp_root/retired-planner-owned-home"
+  local owned_target="$owned_home/agents/planner.toml"
+  local foreign_link_home="$tmp_root/retired-planner-foreign-link-home"
+  local foreign_link="$foreign_link_home/agents/planner.toml"
+  local foreign_source="$tmp_root/foreign-planner.toml"
+  local regular_home="$tmp_root/retired-planner-regular-home"
+  local regular_target="$regular_home/agents/planner.toml"
+  local kind source rel policy
+
+  new_home "$dry_home"
+  mkdir -p -- "$(dirname -- "$dry_target")"
+  ln -s -- "$repo_root/codex-home/agents/planner.toml" "$dry_target"
+  "$installer" install --codex-home "$dry_home" --dry-run >/dev/null
+  [[ -L "$dry_target" && "$(readlink "$dry_target")" == "$repo_root/codex-home/agents/planner.toml" ]] || fail "dry-run retired planner link was mutated"
+
+  new_home "$owned_home"
+  while IFS=$'\t' read -r kind source rel policy; do
+    [[ -n "$kind" && "$kind" != \#* ]] || continue
+    mkdir -p -- "$(dirname -- "$owned_home/$rel")"
+    ln -s -- "$repo_root/$source" "$owned_home/$rel"
+  done < "$manifest"
+  mkdir -p -- "$(dirname -- "$owned_target")"
+  ln -s -- "$repo_root/codex-home/agents/planner.toml" "$owned_target"
+  "$installer" install --codex-home "$owned_home" --apply >/dev/null
+  [[ ! -e "$owned_target" && ! -L "$owned_target" ]] || fail "owned retired planner link remains after apply"
+  [[ ! -e "$owned_home/backups" && ! -L "$owned_home/backups" ]] || fail "planner retirement-only run created a backup directory"
+
+  new_home "$foreign_link_home"
+  printf '%s\n' foreign > "$foreign_source"
+  mkdir -p -- "$(dirname -- "$foreign_link")"
+  ln -s -- "$foreign_source" "$foreign_link"
+  "$installer" install --codex-home "$foreign_link_home" --apply >/dev/null
+  [[ -L "$foreign_link" && "$(readlink "$foreign_link")" == "$foreign_source" ]] || fail "foreign retired planner symlink was removed"
+
+  new_home "$regular_home"
+  mkdir -p -- "$(dirname -- "$regular_target")"
+  printf '%s\n' foreign > "$regular_target"
+  "$installer" install --codex-home "$regular_home" --apply >/dev/null
+  [[ -f "$regular_target" && ! -L "$regular_target" ]] || fail "regular retired planner target was removed"
+  cmp -s "$regular_target" "$foreign_source" || fail "regular retired planner target changed"
+}
+
+test_retired_advisor_migration() {
+  local dry_home="$tmp_root/retired-advisor-dry-home"
+  local dry_target="$dry_home/agents/advisor.toml"
+  local owned_home="$tmp_root/retired-advisor-owned-home"
+  local owned_target="$owned_home/agents/advisor.toml"
+  local foreign_link_home="$tmp_root/retired-advisor-foreign-link-home"
+  local foreign_link="$foreign_link_home/agents/advisor.toml"
+  local foreign_source="$tmp_root/foreign-advisor.toml"
+  local regular_home="$tmp_root/retired-advisor-regular-home"
+  local regular_target="$regular_home/agents/advisor.toml"
+  local kind source rel policy
+
+  new_home "$dry_home"
+  mkdir -p -- "$(dirname -- "$dry_target")"
+  ln -s -- "$repo_root/codex-home/agents/advisor.toml" "$dry_target"
+  "$installer" install --codex-home "$dry_home" --dry-run >/dev/null
+  [[ -L "$dry_target" && "$(readlink "$dry_target")" == "$repo_root/codex-home/agents/advisor.toml" ]] || fail "dry-run retired advisor link was mutated"
+
+  new_home "$owned_home"
+  while IFS=$'\t' read -r kind source rel policy; do
+    [[ -n "$kind" && "$kind" != \#* ]] || continue
+    mkdir -p -- "$(dirname -- "$owned_home/$rel")"
+    ln -s -- "$repo_root/$source" "$owned_home/$rel"
+  done < "$manifest"
+  mkdir -p -- "$(dirname -- "$owned_target")"
+  ln -s -- "$repo_root/codex-home/agents/advisor.toml" "$owned_target"
+  "$installer" install --codex-home "$owned_home" --apply >/dev/null
+  [[ ! -e "$owned_target" && ! -L "$owned_target" ]] || fail "owned retired advisor link remains after apply"
+  [[ ! -e "$owned_home/backups" && ! -L "$owned_home/backups" ]] || fail "advisor retirement-only run created a backup directory"
+
+  new_home "$foreign_link_home"
+  printf '%s\n' foreign > "$foreign_source"
+  mkdir -p -- "$(dirname -- "$foreign_link")"
+  ln -s -- "$foreign_source" "$foreign_link"
+  "$installer" install --codex-home "$foreign_link_home" --apply >/dev/null
+  [[ -L "$foreign_link" && "$(readlink "$foreign_link")" == "$foreign_source" ]] || fail "foreign retired advisor symlink was removed"
+
+  new_home "$regular_home"
+  mkdir -p -- "$(dirname -- "$regular_target")"
+  printf '%s\n' foreign > "$regular_target"
+  "$installer" install --codex-home "$regular_home" --apply >/dev/null
+  [[ -f "$regular_target" && ! -L "$regular_target" ]] || fail "regular retired advisor target was removed"
+  cmp -s "$regular_target" "$foreign_source" || fail "regular retired advisor target changed"
+}
+
+test_retired_terra_executor_migration() {
+  local dry_home="$tmp_root/retired-terra-executor-dry-home"
+  local dry_target="$dry_home/agents/terra-executor.toml"
+  local owned_home="$tmp_root/retired-terra-executor-owned-home"
+  local owned_target="$owned_home/agents/terra-executor.toml"
+  local foreign_link_home="$tmp_root/retired-terra-executor-foreign-link-home"
+  local foreign_link="$foreign_link_home/agents/terra-executor.toml"
+  local foreign_source="$tmp_root/foreign-terra-executor.toml"
+  local regular_home="$tmp_root/retired-terra-executor-regular-home"
+  local regular_target="$regular_home/agents/terra-executor.toml"
+  local kind source rel policy
+
+  new_home "$dry_home"
+  mkdir -p -- "$(dirname -- "$dry_target")"
+  ln -s -- "$repo_root/codex-home/agents/terra-executor.toml" "$dry_target"
+  "$installer" install --codex-home "$dry_home" --dry-run >/dev/null
+  [[ -L "$dry_target" && "$(readlink "$dry_target")" == "$repo_root/codex-home/agents/terra-executor.toml" ]] || fail "dry-run retired terra-executor link was mutated"
+
+  new_home "$owned_home"
+  while IFS=$'\t' read -r kind source rel policy; do
+    [[ -n "$kind" && "$kind" != \#* ]] || continue
+    mkdir -p -- "$(dirname -- "$owned_home/$rel")"
+    ln -s -- "$repo_root/$source" "$owned_home/$rel"
+  done < "$manifest"
+  mkdir -p -- "$(dirname -- "$owned_target")"
+  ln -s -- "$repo_root/codex-home/agents/terra-executor.toml" "$owned_target"
+  "$installer" install --codex-home "$owned_home" --apply >/dev/null
+  [[ ! -e "$owned_target" && ! -L "$owned_target" ]] || fail "owned retired terra-executor link remains after apply"
+  [[ ! -e "$owned_home/backups" && ! -L "$owned_home/backups" ]] || fail "terra-executor retirement-only run created a backup directory"
+
+  new_home "$foreign_link_home"
+  printf '%s\n' foreign > "$foreign_source"
+  mkdir -p -- "$(dirname -- "$foreign_link")"
+  ln -s -- "$foreign_source" "$foreign_link"
+  "$installer" install --codex-home "$foreign_link_home" --apply >/dev/null
+  [[ -L "$foreign_link" && "$(readlink "$foreign_link")" == "$foreign_source" ]] || fail "foreign retired terra-executor symlink was removed"
+
+  new_home "$regular_home"
+  mkdir -p -- "$(dirname -- "$regular_target")"
+  printf '%s\n' foreign > "$regular_target"
+  "$installer" install --codex-home "$regular_home" --apply >/dev/null
+  [[ -f "$regular_target" && ! -L "$regular_target" ]] || fail "regular retired terra-executor target was removed"
+  cmp -s "$regular_target" "$foreign_source" || fail "regular retired terra-executor target changed"
+}
+
 test_backup_restore() {
   local home="$tmp_root/restore-home" backup="$tmp_root/restore-backup"
   local kind source rel policy
@@ -386,6 +587,9 @@ test_rollback_after_link_failure() {
   ln -s -- "$repo_root/codex-home/agents/luna-reader.toml" "$home/agents/luna-reader.toml"
   ln -s -- "$repo_root/codex-home/REVIEW.md" "$home/REVIEW.md"
   ln -s -- "$repo_root/codex-home/SUB_AGENTS.md" "$home/SUB_AGENTS.md"
+  ln -s -- "$repo_root/codex-home/agents/planner.toml" "$home/agents/planner.toml"
+  ln -s -- "$repo_root/codex-home/agents/advisor.toml" "$home/agents/advisor.toml"
+  ln -s -- "$repo_root/codex-home/agents/terra-executor.toml" "$home/agents/terra-executor.toml"
   real_mv=$(command -v mv)
   {
     printf '%s\n' '#!/usr/bin/env bash'
@@ -404,6 +608,9 @@ test_rollback_after_link_failure() {
   [[ -L "$home/agents/luna-reader.toml" && "$(readlink "$home/agents/luna-reader.toml")" == "$repo_root/codex-home/agents/luna-reader.toml" ]] || fail "legacy link was not restored after rollback"
   [[ -L "$home/REVIEW.md" && "$(readlink "$home/REVIEW.md")" == "$repo_root/codex-home/REVIEW.md" ]] || fail "retired REVIEW link was not restored after rollback"
   [[ -L "$home/SUB_AGENTS.md" && "$(readlink "$home/SUB_AGENTS.md")" == "$repo_root/codex-home/SUB_AGENTS.md" ]] || fail "retired SUB_AGENTS.md link was not restored after rollback"
+  [[ -L "$home/agents/planner.toml" && "$(readlink "$home/agents/planner.toml")" == "$repo_root/codex-home/agents/planner.toml" ]] || fail "retired planner link was not restored after rollback"
+  [[ -L "$home/agents/advisor.toml" && "$(readlink "$home/agents/advisor.toml")" == "$repo_root/codex-home/agents/advisor.toml" ]] || fail "retired advisor link was not restored after rollback"
+  [[ -L "$home/agents/terra-executor.toml" && "$(readlink "$home/agents/terra-executor.toml")" == "$repo_root/codex-home/agents/terra-executor.toml" ]] || fail "retired terra-executor link was not restored after rollback"
   [[ -z "$(find "$home" -name '*.codex-config.*' -print -quit)" ]] || fail "temporary link remained after rollback"
 }
 
@@ -521,6 +728,9 @@ test_empty_install_verify_uninstall
 test_legacy_reader_migration
 test_retired_review_migration
 test_retired_sub_agents_migration
+test_retired_planner_migration
+test_retired_advisor_migration
+test_retired_terra_executor_migration
 test_backup_restore
 test_incremental_restore_preserves_unchanged_links
 test_rollback_after_link_failure
