@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Workflow Audit"
+  short_description: "Visualize agent timelines and find workflow bottlenecks"
+  default_prompt: "Use $agent-workflow-audit to analyze the previous task turn and show where time went."

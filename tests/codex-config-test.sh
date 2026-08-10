@@ -97,6 +97,8 @@ if "codex-home/agents/reader.toml\tagents/reader.toml\texact" not in manifest:
     raise SystemExit("manifest does not install reader.toml")
 if "codex-home/agents/reviewer.toml\tagents/reviewer.toml\texact" not in manifest:
     raise SystemExit("manifest does not install reviewer.toml")
+if "codex-home/skills/agent-workflow-audit\tskills/agent-workflow-audit\texact" not in manifest:
+    raise SystemExit("manifest does not install agent-workflow-audit")
 if "luna-reader" in manifest or "luna-reader" in (root / "README.md").read_text():
     raise SystemExit("deprecated luna-reader agent reference is still managed or documented")
 

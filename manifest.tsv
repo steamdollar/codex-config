@@ -8,6 +8,7 @@ file	codex-home/agents/executor.toml	agents/executor.toml	exact
 file	codex-home/agents/researcher.toml	agents/researcher.toml	exact
 file	codex-home/agents/reviewer.toml	agents/reviewer.toml	exact
 file	codex-home/rules/default.rules	rules/default.rules	exact
+dir	codex-home/skills/agent-workflow-audit	skills/agent-workflow-audit	exact
 dir	codex-home/skills/apple-design	skills/apple-design	exact
 dir	codex-home/skills/coldstart	skills/coldstart	exact
 dir	codex-home/skills/gh-pr-comment-report	skills/gh-pr-comment-report	exact
