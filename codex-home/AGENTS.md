@@ -19,7 +19,8 @@
 
 - 전역 자동 라우팅은 위 표에 정의된 `reader`·`researcher`·`reviewer`·`executor`만 사용하며, 그 밖의 Codex built-in·unmanaged custom·project-specific role은 사용자가 명시적으로 요청하거나 적용되는 project/skill 지침이 명시적으로 요청할 때만 사용한다.
 
-- 대화 의존성이 높거나 문구만 바꾸는 작은 작업은 위임이 context 또는 risk 측면에서 실질적인 이점을 주지 않을 때만 Primary가 직접 수행할 수 있다.
+- scope·dependency·risk가 단순하고 대화 의존성이 높거나 문구·단일 문서·작은 설정만 바꾸는 bounded 작업은 Primary가 직접 수행한다. 이 규칙은 아래 Context 관리의 직접 작업 지양 원칙보다 우선한다.
+- `executor`는 여러 파일의 구현, 독립된 targeted test, 병렬화처럼 위임이 context·risk·wall-clock time 측면에서 실질적인 이점을 줄 때만 호출하며 모든 write의 필수 관문으로 사용하지 않는다.
 - `reviewer`를 제외한 role의 spawn 또는 attestation이 불가하면 `[DEGRADED: role/model not attested]`를 보고하고 bounded Primary fallback을 사용하며 다른 role로 조용히 대체하지 않는다.
 - delegation depth는 1로 제한하며, 선후·입력·범위·판단 의존성이 없는 currently-ready 작업은 role과 무관하게 runtime concurrency 한도 내에서 병렬 실행한다. 서로 다른 role, 같은 role의 여러 instance, 혼합 구성이 모두 같은 규칙을 따른다.
 - Primary가 disjoint ownership을 명시하고 shared mutable target/state가 겹치지 않으면 write 작업도 병렬 실행할 수 있다. 같은 파일뿐 아니라 생성물·lockfile/manifest·migration/fixture·build output·외부 상태 같은 간접 shared state 충돌도 확인한다.

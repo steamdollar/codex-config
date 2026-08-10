@@ -139,6 +139,9 @@ for contract in (
 if "role 또는 model을 검증할 수 없으면" in agents:
     raise SystemExit("AGENTS.md retains generic attestation fallback duplicate")
 for contract in (
+    "scope·dependency·risk가 단순하고 대화 의존성이 높거나 문구·단일 문서·작은 설정만 바꾸는 bounded 작업은 Primary가 직접 수행한다.",
+    "이 규칙은 아래 Context 관리의 직접 작업 지양 원칙보다 우선한다.",
+    "`executor`는 여러 파일의 구현, 독립된 targeted test, 병렬화처럼 위임이 context·risk·wall-clock time 측면에서 실질적인 이점을 줄 때만 호출하며 모든 write의 필수 관문으로 사용하지 않는다.",
     "`reviewer`를 제외한 role의 spawn 또는 attestation이 불가하면 `[DEGRADED: role/model not attested]`를 보고하고 bounded Primary fallback을 사용하며 다른 role로 조용히 대체하지 않는다.",
     "전역 자동 라우팅은 위 표에 정의된",
     "`reader`·`researcher`·`reviewer`·`executor`만 사용하며",
