@@ -177,6 +177,11 @@ contracts = {
     ),
     "executor.toml": (
         "승인된 원자적 구현 단계 정확히 하나만 맡는다.",
+        "test code·fixture의 최소 변경은 Primary가 명시적으로 제외하지",
+        "기존 coverage가 없거나 부족하면",
+        "최소한의 targeted test를 작성·수정한다",
+        "변경한 layer와 직접 영향받는",
+        "변경하지 않은 layer나 unrelated suite까지 검증을 확대하지 않는다",
         "사용자에게 연락하거나 user-facing/final 결정을 내리거나 scope를 넓히거나",
         "`status`는 변경과 관련 검증이",
     ),
