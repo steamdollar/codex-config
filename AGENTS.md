@@ -24,3 +24,8 @@
 
 - 새 branch를 만들거나 PR을 열지 않는다. 이 저장소의 변경은 `main`에서 작업하고 검증 후 commit하여 `origin/main`에 직접 push한다.
 - push 전에 remote 변경을 확인하고 보존한다. conflict나 non-fast-forward를 덮어쓰지 않으며 force push하지 않는다.
+- 사용자의 명시적 요청 없이 push, commit하지 말 것.
+- 본인(in tab)의 작업만 선별적으로 commit, push하지말고 사용자가 하라고 했으면 전체 변경 사항을 한 번에 handling 할것.
+
+## Deprecate
+- 필요없어진 파일들은 별도 보관없이 삭제할 것. 이후 필요하다면 git log를 이용해 확인 (아마 그럴 일도 없을 듯)
