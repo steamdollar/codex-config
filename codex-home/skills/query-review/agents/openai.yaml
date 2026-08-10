@@ -1,4 +1,4 @@
 interface:
   display_name: "Query Review"
-  short_description: "Review SQL metrics top-down"
-  default_prompt: "Use $query-review to explain and validate this SQL metric query."
+  short_description: "Explain and validate SQL semantics"
+  default_prompt: "Use $query-review to explain this SQL top-down and check whether it matches the intended metric."

@@ -1,4 +1,4 @@
 interface:
-  display_name: "Review Brief"
-  short_description: "Guide interactive, quick, or exported code review reading"
-  default_prompt: "Use $user-review-helper to walk me through these changes in a review session."
+  display_name: "Architecture Review Walkthrough"
+  short_description: "Architecture-first walkthrough before reading code"
+  default_prompt: "Use $user-review-helper to explain this change from outcome to architecture, then walk me through the code."

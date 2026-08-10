@@ -1,4 +1,4 @@
 interface:
-  display_name: "PR Comment Report"
-  short_description: "Analyze PR comments; export only on request"
-  default_prompt: "Use $gh-pr-comment-report to read and analyze PR comments, returning a concise in-chat report unless I explicitly request a markdown export."
+  display_name: "PR Feedback Report"
+  short_description: "Analyze human PR feedback without implementing it"
+  default_prompt: "Use $gh-pr-comment-report to analyze the human review feedback on this PR and report the actionable items without making changes."

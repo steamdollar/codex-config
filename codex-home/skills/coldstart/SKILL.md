@@ -1,74 +1,62 @@
 ---
 name: coldstart
-description: Create a handoff prompt for continuing work in a fresh Codex or agent tab, grounded in existing PLAN, ADR, spec, task, and decision docs. Use for "cold start", "new tab", or "인수인계 prompt" requests.
+description: Create a paste-ready handoff prompt that continues the exact current task in a fresh Codex or agent tab without switching scope. Use when the user asks for a "cold start", "new tab", "handoff", or "인수인계" prompt. Do not use for summaries, PR descriptions, or choosing a new task.
 ---
 
 # Coldstart
 
-Produce a compact prompt the user can paste into a new Codex/coding-agent session. Make the intended outcome and completion criteria obvious before adding context.
+Create a compact prompt that lets a fresh session resume the user's intended task without selecting a nearby or queued task instead.
 
-## Principles
+## Lock the task
 
-**Lead with the goal.** State the concrete deliverable, scope boundary, and intended outcome. Never use a vague goal such as "continue the task."
+Identify the target in this order:
 
-**Define done.** Add 2-4 observable completion conditions, including the relevant verification or handoff state.
+1. Use the task explicitly named in the current handoff request.
+2. Otherwise, use the latest user-confirmed active task only when it is unambiguous.
+3. Use an in-progress plan step only when it matches that task.
 
-**Include only action-changing context.** Omit generic workflow, background prose, and facts the next agent can discover cheaply. Keep a decision, constraint, or current-state fact only when it changes what the next agent should do.
+Preserve the user's task wording when practical. Treat plans, specs, branches, recently modified files, and open files as evidence about the selected task, never as reasons to select a different task. If candidates conflict or the target is ambiguous, ask one concise question and do not draft the prompt.
 
-**Cite instead of copying.** Point to authoritative files and exact headings or symbols. Do not summarize material the next session can read directly.
+## Build the handoff
 
-**Avoid auto-loaded files.** Do not list root `AGENTS.md` or global instructions unless the user explicitly asks. Include only task-specific plans, ADRs, specs, contracts, or decision notes that are not loaded automatically.
+1. State the exact task, scope boundary, and intended end state.
+2. Derive 2-3 observable completion conditions and the immediate next action only from the latest confirmed conversation state. If they are not known, omit them or mark them unknown instead of designing new work.
+3. Cite at most 2 verified absolute paths that directly control this task. For long files, cite the exact heading or symbol.
+4. Include only verified progress and decisions or constraints that change the next session's work.
+5. Preserve approvals, plan state, and risk gates only when they apply to the selected task.
 
-**Preserve real gates.** Carry forward approvals, plan state, and risk gates that actually apply. Do not add generic approval or planning steps.
+Do not:
 
-## Procedure
+- advance to the next queued task;
+- choose a task because its docs are newer or more complete;
+- include unrelated plans or nearby work;
+- invent goals, completion conditions, or next steps from nearby docs;
+- add generic discovery, planning, or approval gates;
+- list auto-loaded root `AGENTS.md` or global instructions unless requested;
+- run broad builds or tests just to prepare the prompt;
+- copy background that the next session can read from a cited source.
 
-1. Determine the goal from the user's latest direction and the active plan/spec.
-   - Express it as an end state, not an activity.
-   - Resolve conflicting historical wording in favor of the user's latest direction.
-   - Ask one concise question only when the outcome cannot be determined safely.
+## Output
 
-2. Derive 2-4 completion conditions.
-   - Cover the requested artifact or behavior, scope boundary, and relevant verification.
-   - Do not turn generic repository rules into completion conditions.
-
-3. Locate only the sources needed to act.
-   - Prefer the active task plan plus the most authoritative spec, ADR, or code symbol.
-   - Include at most 3 verified absolute paths.
-   - For long files, cite the exact heading or symbol.
-
-4. Check current state only as needed.
-   - Use `git status -s`, `git branch --show-current`, `git log --oneline -n 5`, or narrow `rg` searches when the prompt needs branch/progress facts.
-   - Do not run broad builds or tests just to write a cold-start prompt.
-
-5. Compose the prompt in the user's language.
-   - Korean user -> Korean prompt.
-   - Wrap the whole prompt in one fenced `markdown` block.
-   - Keep it short enough to scan before opening files; default to about 20 lines.
-   - Put `Goal` and `Done when` before references or current state.
-   - Mark unverified state with `[UNKNOWN: ...]`.
-   - After the block, add only one short sentence telling the user to paste it into the new tab.
-
-## Template
+- Write in the user's language and wrap the entire prompt in one fenced `markdown` block.
+- Use the exact task name as the first heading; do not prefix it with `Cold start`.
+- Default to 12-18 lines and omit any section that adds no action-changing information.
+- Mark unverified state with `[UNKNOWN: ...]`.
+- After the block, add only one short sentence telling the user to paste it into the new tab.
 
 ```markdown
-# Cold start - <task name>
+# <exact task name>
 
-## Goal
-<deliverable, scope, and intended end state in one concrete sentence>
+<work to resume, its intended end state, and the necessary scope boundary>
 
 ## Done when
 - <observable completion condition>
-- <relevant test, review, or handoff condition>
+- <verification or handoff condition>
 
 ## Start here
-1. Read `<absolute path>` → `<heading/symbol>` for <why it controls the work>.
-2. <one concrete next action>
+1. Read `<absolute path>` → `<heading/symbol>` for <why it controls this task>.
+2. <immediate next action>
 
-## Current state
-- Done: <only verified progress that prevents repeated work>
-- Next: <immediate next step>
-
-## Decisions / constraints
-- <only an action-changing decision, gate, or gotcha> — `<source>`
+## Constraints
+- <only verified, action-changing context>
 ```

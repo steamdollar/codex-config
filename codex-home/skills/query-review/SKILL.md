@@ -1,75 +1,60 @@
 ---
 name: query-review
-description: "Explain and validate SQL or analytics queries top-down, especially Athena KPI queries. Check population, grain, cohort versus period activity, numerator/denominator, and invalid percentages. Use for \"이 쿼리 맞아?\", query analysis, or semantic review."
+description: "Explain SQL or analytics queries top-down and validate whether they match the intended metric or business meaning. Use for query walkthroughs, semantic review, or questions such as \"이 쿼리 맞아?\". Do not use for execution-only requests, syntax-error-only debugging, performance tuning, or unrelated code review."
 ---
 
-# Query Review Skill
+# Query Review
 
-The user wants to review analytics or SQL queries one by one and decide whether each truly expresses the statistic they want. They are often strong on backend but weak on SQL syntax, so explanations must be concrete, using analogies and tiny numeric examples instead of jargon. This is a reading and validation flow, not a bulk rewrite.
+Explain what a query produces and verify whether its data population, grain, and calculations match the user's intent. Do not treat readability or valid syntax as proof of semantic correctness.
 
-## Interaction Model
+## Choose the mode
 
-- Review one query per turn. Do not analyze several at once. Finish or park the current query before moving on.
-- Let the user drive. Each query follows this fixed sequence:
-  1. Target: agree on which query to look at. Recommend the simplest representative of a class first.
-  2. Syntax Q&A: explain the mechanics top-down, then stop and let the user ask about anything they do not know. Answer those before judging.
-  3. Semantics / business fit: only after syntax is clear, check whether it expresses the intended statistic.
-  4. Resolve: if fine, say so and end the turn. If wrong, give options and a recommendation, get a decision, then apply.
-- Do not jump to semantic critique while still in the syntax phase. Keep the phases clean.
+- **EXPLAIN:** When the user asks for a walkthrough or wants to proceed one block at a time, explain top-down and pause at the requested depth for questions.
+- **REVIEW:** When the user asks whether a query is correct, give the structural explanation and semantic verdict in the same response. Do not force a separate syntax phase first.
 
-## Top-Down Explanation
+Default to one query at a time for an interactive walkthrough. If the user explicitly requests a batch review, cover each query separately or group only queries that share the same semantic pattern.
 
-Peel from the outside in, not line-by-line:
+## Read top-down
 
-- Level 0: what it ultimately produces. Read the final `SELECT` first, for example "the answer is numerator divided by denominator". Everything above is prep.
-- Level 1: split into 2-4 named blocks. Usually each CTE is one block. Draw dependency arrows so the user sees the data flow, not just text.
-- Level 2: inside each block, explain what this CTE turns its source rows into. State its output shape: columns and what one row means.
-- Level 3: explain fragment internals only when asked, such as `MIN(concat(...))`, `substr`, `GROUP BY 1,2`, `COALESCE`, `LEFT JOIN`, or `NULLIF`.
+1. Identify the SQL dialect and the intended result. Ask only when missing context would materially change the verdict.
+2. Read the final `SELECT` first. State the output columns and what one result row represents.
+3. Split the query into 2-4 named blocks and trace their dependencies. Use a compact flow only when it materially clarifies several dependent blocks.
+4. For each block, state its input population, output grain, and cardinality-changing operations.
+5. Explain expression internals only when they affect meaning or the user asks.
 
-Teaching aids that work for an SQL-weak reader:
+Use a tiny before/after table or numeric example when it makes row collapse, duplication, or a ratio easier to see. Do not default to line-by-line narration.
 
-- Analogies: CTE is a local variable inside a function; `GROUP BY` is an Excel pivot; string `MIN` over fixed-width `YYYYMMDD` works because lexical order matches chronological order.
-- Tiny before/after tables: show 3-4 raw rows collapsing into the CTE output rows.
-- Name dropped columns: after a `GROUP BY`, say exactly which fields survive, keys plus aggregates, and which are discarded.
+## Validate semantics
 
-## Semantic Checklist
+Check the items that can change the answer:
 
-Pull the query apart against the metric name and intended meaning:
+- intended population and final aggregation grain;
+- join cardinality, duplicate multiplication, and dropped unmatched rows;
+- filter placement before or after joins and aggregation;
+- `NULL` behavior, default values, and missing-data treatment;
+- time column, timezone, and inclusive or exclusive boundaries;
+- dialect-specific division, casts, window frames, and grouping behavior;
+- consistency between the metric name, output format, and possible values.
 
-- Same population on both sides? For any ratio or average, check whether numerator and denominator count the same set of entities. A frequent bug is numerator filtered on one event-time and denominator on another, creating different cohorts.
-- Cohort vs period-activity: conversion, acceptance, and similar rates usually imply a cohort where numerator is a subset of denominator and should stay 0-100%. If it is "things that happened in range divided by other things in range", it can exceed 100% or go negative. Demonstrate with a concrete numeric example.
-- Aggregation grain: does raw `COUNT(*)` over an event log over-count multiple rows per entity? Sibling metrics should dedupe consistently with `SELECT DISTINCT key` or a shared fragment.
-- Time-filter target: when the same date placeholder or predicate appears more
-  than once, confirm which columns and populations each instance filters.
-- Format sanity: percent should be at most 100% unless intentionally not; currency and durations should be non-negative.
-- Mark anything not verified from code or data as `[UNKNOWN: ...]`. Do not guess schema, keys, or partition format.
+For ratios and rates, also check whether the numerator is a subset of the denominator, whether cohort membership is mixed with period activity, and whether values above 100% or below 0 are structurally possible.
 
-## Cohort Fix Pattern
+Inspect referenced fragments, schema, or sample data when the verdict depends on them. Mark unresolved assumptions as `[UNKNOWN: ...]`; never guess keys, grain, partitions, or business intent.
 
-To turn a broken ratio into a real cohort rate, fix the denominator set, then make the numerator a subset via `LEFT JOIN`:
+## Resolve findings
 
-```sql
-WITH
-  cohort AS ( /* the in-range population, fixed */ ),
-  ever_X AS ( /* entities that ever did X, time-unfiltered */ )
-SELECT CAST(COUNT(x.key) AS DOUBLE) / NULLIF(COUNT(*), 0) AS value
-FROM cohort c LEFT JOIN ever_X x USING (key...)
-```
+- In REVIEW mode, lead with `correct`, `conditionally correct`, `incorrect`, or `unknown`, followed by the evidence that controls the verdict.
+- If the query is wrong, offer the smallest viable options and recommend one. Diagnosis does not authorize edits.
+- Modify SQL only after the user explicitly asks or approves an option. Then preserve repository patterns and run the narrowest relevant verification.
+- Do not silently rename a metric to make incorrect logic appear correct, or change business meaning without calling out the trade-off.
 
-Say the tradeoff explicitly: a fresh cohort looks low because members have not converted yet. That is correct cohort behavior, not a bug.
+## Output shape
 
-## When A Fix Is Approved
+For EXPLAIN, present the final result and grain, the block-level data flow, and only the details needed for the user's next question.
 
-- Present options as a small table: A recommended, B keep and relabel honestly, or do nothing. Include effort and risk, then ask for the decision. Do not apply before the user picks.
-- Apply the smallest correct change. Reuse existing fragments and patterns already in the file.
-- Use targeted tests only: `npx jest <path>` or the workspace's narrow runner. Never run the full suite for a one-file change. Add or adjust a regression guard that locks the intent, such as asserting cohort `LEFT JOIN` is present, not the literal SQL.
-- Sync the docs or dashboard definition line if the metric meaning changed.
+For REVIEW, present:
 
-## Anti-Patterns
-
-- Line-by-line explanation with no top-down structure.
-- Critiquing semantics while the user is still asking what a keyword does.
-- Analyzing multiple queries in one turn, or preemptively rewriting before the user decides.
-- Asserting query behavior from memory. Read the fragment or util that the
-  template expands to, and confirm what each date placeholder becomes.
-- Running the full test suite for a single-query change.
+1. verdict;
+2. intended result versus actual result and grain;
+3. semantic findings with evidence;
+4. risks and unknowns;
+5. fix options only when needed.
