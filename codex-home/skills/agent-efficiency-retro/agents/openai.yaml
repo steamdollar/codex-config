@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Efficiency Retro"
+  short_description: "Review recent task execution and propose leaner workflows"
+  default_prompt: "Use $agent-efficiency-retro to review my recent Codex tasks and propose only evidence-backed workflow improvements."

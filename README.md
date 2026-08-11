@@ -11,7 +11,7 @@ symlinks; managed skills and runtime state stay local.
 - Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
 - Custom-agent role bindings: `reader.toml`, `executor.toml`, `researcher.toml`, `reviewer.toml`
 - Custom rule: `default.rules`
-- Six user-authored skills listed in `manifest.tsv`
+- Seven user-authored skills listed in `manifest.tsv`
 
 `config.shared.toml` contains portable settings such as the selected model,
 plugins, and service defaults. `config.toml` is ignored, remains the manifest
