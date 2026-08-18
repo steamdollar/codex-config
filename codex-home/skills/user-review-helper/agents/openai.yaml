@@ -1,4 +1,4 @@
 interface:
   display_name: "Architecture Review Walkthrough"
-  short_description: "Architecture-first walkthrough before reading code"
-  default_prompt: "Use $user-review-helper to explain this change from outcome to architecture, then walk me through the code."
+  short_description: "Adaptive instance-first walkthrough before reading code"
+  default_prompt: "Use $user-review-helper to explain this change instance by instance at my current level, reset from missing prerequisites if I get lost, then walk me through one concrete code flow at a time."
