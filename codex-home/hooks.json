@@ -10,6 +10,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CODEX_HOME:-$HOME/.codex}/hooks/notify.py\"",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }
