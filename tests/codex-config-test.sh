@@ -35,6 +35,8 @@ with (root / "config.shared.toml").open("rb") as f:
 expected_config = {
     "model": "gpt-5.6-sol",
     "model_reasoning_effort": "high",
+    "default_permissions": ":danger-full-access",
+    "approval_policy": "never",
 }
 for key, value in expected_config.items():
     if config.get(key) != value:
