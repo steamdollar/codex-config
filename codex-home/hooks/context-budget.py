@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Iterator
 
 
-SOFT_PERCENT = 45
 HARD_PERCENT = 60
 CHUNK_SIZE = 64 * 1024
 AUDIT_OUTPUT_LIMIT = 12 * 1024
@@ -294,23 +293,18 @@ def audit_message(audit: TurnAudit) -> str | None:
     return f"[Turn audit] {'; '.join(violations)}." if violations else None
 
 
-def thresholds(context_window: int) -> tuple[int, int] | None:
-    soft_override = os.environ.get("CODEX_CONTEXT_BUDGET_SOFT_TOKENS")
+def threshold(context_window: int) -> int | None:
     hard_override = os.environ.get("CODEX_CONTEXT_BUDGET_HARD_TOKENS")
-    if soft_override is not None or hard_override is not None:
-        if soft_override is None or hard_override is None:
-            return None
+    if hard_override is not None:
         try:
-            soft = int(soft_override)
             hard = int(hard_override)
         except ValueError:
             return None
     else:
-        soft = (context_window * SOFT_PERCENT + 99) // 100
         hard = (context_window * HARD_PERCENT + 99) // 100
-    if not 0 < soft < hard:
+    if hard <= 0:
         return None
-    return soft, hard
+    return hard
 
 
 def state_root() -> Path:
@@ -324,7 +318,7 @@ def state_root() -> Path:
     return Path(tempfile.gettempdir()) / f"codex-context-budget-{uid}"
 
 
-def claim_warning(session_id: str, level: str, consume_soft: bool = False) -> bool:
+def claim_warning(session_id: str) -> bool:
     root = state_root()
     try:
         root.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -343,9 +337,7 @@ def claim_warning(session_id: str, level: str, consume_soft: bool = False) -> bo
         return False
 
     session_key = hashlib.sha256(session_id.encode("utf-8")).hexdigest()
-    if level == "soft" and (root / f"{session_key}.hard").exists():
-        return False
-    marker = root / f"{session_key}.{level}"
+    marker = root / f"{session_key}.hard"
     try:
         descriptor = os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError:
@@ -355,34 +347,18 @@ def claim_warning(session_id: str, level: str, consume_soft: bool = False) -> bo
     else:
         os.close(descriptor)
 
-    if consume_soft:
-        soft_marker = root / f"{session_key}.soft"
-        try:
-            descriptor = os.open(
-                soft_marker,
-                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
-                0o600,
-            )
-        except (FileExistsError, OSError):
-            pass
-        else:
-            os.close(descriptor)
     return True
 
 
-def warning_message(level: str, input_tokens: int, context_window: int) -> str:
+def warning_message(input_tokens: int, context_window: int) -> str:
     percentage = input_tokens / context_window * 100
     action = (
-        "In your next response, after completing the current atomic step, explicitly "
-        "tell the user that context is high and recommend preparing a PLAN/ADR/task "
-        "handoff for a new tab."
-        if level == "soft"
-        else "In your next response, explicitly recommend starting a new tab at the "
+        "In your next response, explicitly recommend starting a new tab at the "
         "next clean boundary and offer a PLAN/ADR/task handoff. Do not interrupt an "
         "unsafe or incomplete atomic action."
     )
     return (
-        f"[Context budget {level}] {input_tokens:,} / {context_window:,} input tokens "
+        f"[Context budget] {input_tokens:,} / {context_window:,} input tokens "
         f"({percentage:.1f}%). This turn is not blocked. {action}"
     )
 
@@ -410,20 +386,10 @@ def main() -> int:
     usage = latest_usage(transcript)
     if usage is not None:
         input_tokens, context_window = usage
-        configured_thresholds = thresholds(context_window)
-        if configured_thresholds is not None:
-            soft, hard = configured_thresholds
-            level: str | None = None
-            if input_tokens >= hard:
-                level = "hard"
-                claimed = claim_warning(session_id, level, consume_soft=True)
-            elif input_tokens >= soft:
-                level = "soft"
-                claimed = claim_warning(session_id, level)
-            else:
-                claimed = False
-            if claimed and level is not None:
-                messages.append(warning_message(level, input_tokens, context_window))
+        configured_threshold = threshold(context_window)
+        if configured_threshold is not None and input_tokens >= configured_threshold:
+            if claim_warning(session_id):
+                messages.append(warning_message(input_tokens, context_window))
 
     audit = turn_audit(transcript)
     if audit is not None:

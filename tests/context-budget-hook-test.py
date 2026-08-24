@@ -95,7 +95,6 @@ class ContextBudgetHookTest(unittest.TestCase):
             }
         )
         process_env = os.environ.copy()
-        process_env.pop("CODEX_CONTEXT_BUDGET_SOFT_TOKENS", None)
         process_env.pop("CODEX_CONTEXT_BUDGET_HARD_TOKENS", None)
         process_env["CODEX_CONTEXT_BUDGET_STATE_DIR"] = str(self.state)
         process_env.update(env or {})
@@ -125,38 +124,22 @@ class ContextBudgetHookTest(unittest.TestCase):
         return hook_output["additionalContext"]
 
     def test_below_threshold_ignores_cumulative_total(self) -> None:
-        self.write_events(token_event(449, 1000))
+        self.write_events(token_event(599, 1000))
         self.assert_silent(self.run_hook())
 
-    def test_soft_then_hard_each_warn_once(self) -> None:
-        self.write_events(token_event(450, 1000))
-        soft = self.run_hook()
-        self.assertIn("[Context budget soft]", self.additional_context(soft))
-        self.assert_silent(self.run_hook())
-
+    def test_threshold_warns_once(self) -> None:
         self.write_events(token_event(600, 1000))
-        hard = self.run_hook()
-        self.assertIn("[Context budget hard]", self.additional_context(hard))
+        warning = self.run_hook()
+        self.assertIn("[Context budget]", self.additional_context(warning))
         self.assert_silent(self.run_hook())
-
-    def test_first_hard_crossing_consumes_soft(self) -> None:
-        self.write_events(token_event(700, 1000))
-        hard = self.run_hook("hard-first")
-        self.assertIn("[Context budget hard]", self.additional_context(hard))
-
-        self.write_events(token_event(500, 1000))
-        self.assert_silent(self.run_hook("hard-first"))
 
     def test_absolute_override_uses_exact_boundaries(self) -> None:
-        override = {
-            "CODEX_CONTEXT_BUDGET_SOFT_TOKENS": "150",
-            "CODEX_CONTEXT_BUDGET_HARD_TOKENS": "200",
-        }
-        self.write_events(token_event(149, 1000))
+        override = {"CODEX_CONTEXT_BUDGET_HARD_TOKENS": "200"}
+        self.write_events(token_event(199, 1000))
         self.assert_silent(self.run_hook("absolute-below", env=override))
-        self.write_events(token_event(150, 1000))
-        result = self.run_hook("absolute-soft", env=override)
-        self.assertIn("150 / 1,000", self.additional_context(result))
+        self.write_events(token_event(200, 1000))
+        result = self.run_hook("absolute-threshold", env=override)
+        self.assertIn("200 / 1,000", self.additional_context(result))
 
     def test_newest_valid_token_event_wins(self) -> None:
         self.write_events(
@@ -192,11 +175,11 @@ class ContextBudgetHookTest(unittest.TestCase):
         self.transcript.write_text("", encoding="utf-8")
         self.assert_silent(self.run_hook("empty-transcript"))
 
-    def test_invalid_partial_override_fails_open(self) -> None:
+    def test_invalid_override_fails_open(self) -> None:
         self.write_events(token_event(900, 1000))
         self.assert_silent(
             self.run_hook(
-                env={"CODEX_CONTEXT_BUDGET_SOFT_TOKENS": "150"},
+                env={"CODEX_CONTEXT_BUDGET_HARD_TOKENS": "invalid"},
             )
         )
 
@@ -251,7 +234,7 @@ class ContextBudgetHookTest(unittest.TestCase):
 
     def test_audit_is_injected_alongside_context_warning(self) -> None:
         self.write_events(
-            token_event(450, 1000),
+            token_event(600, 1000),
             event_marker("task_started"),
             event_message("user"),
             tool_call("cat repeated.txt"),
@@ -259,7 +242,7 @@ class ContextBudgetHookTest(unittest.TestCase):
             event_marker("task_complete"),
         )
         context = self.additional_context(self.run_hook("context-and-audit"))
-        self.assertIn("[Context budget soft]", context)
+        self.assertIn("[Context budget]", context)
         self.assertIn("[Turn audit]", context)
 
 

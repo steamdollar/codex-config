@@ -136,15 +136,14 @@ is refreshed.
 
 ## Context-budget warning
 
-The `Stop` hook reads the newest recorded `last_token_usage.input_tokens` from
-the session transcript. It warns once at 45% and once at 60% of the model
-context window without blocking the turn.
+The `UserPromptSubmit` hook reads the newest recorded
+`last_token_usage.input_tokens` from the session transcript. It warns once at
+60% of the model context window without blocking the turn.
 
-Override both thresholds for a launched Codex session when absolute limits are
+Override the threshold for a launched Codex session when an absolute limit is
 preferred:
 
 ```bash
-CODEX_CONTEXT_BUDGET_SOFT_TOKENS=150000 \
 CODEX_CONTEXT_BUDGET_HARD_TOKENS=200000 \
 codex
 ```

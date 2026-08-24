@@ -13,6 +13,7 @@
 - installer는 repository가 소유한 정확한 symlink만 교체하거나 제거한다. foreign symlink와 regular file은 보존한다.
 - live 설정을 반영할 때는 dry-run 결과를 확인한 뒤 apply하고 verify한다. source recovery는 Git을 사용하고 live 변경의 recovery는 installer backup과 rollback을 사용한다.
 - 관련 없는 변경과 다른 작업자의 변경을 보존한다. 변경은 최소 범위이며 쉽게 review하고 rollback할 수 있어야 한다.
+- codex-config 관련 대화 턴에서 변경이 있을 경우, 필요에 따라 setup script를 한 번 실행할 것.
 
 ## 검증
 
