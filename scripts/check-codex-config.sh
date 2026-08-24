@@ -27,4 +27,4 @@ python3 -m json.tool codex-home/hooks.json >/dev/null
 python3 tests/context-budget-hook-test.py
 PYTHONDONTWRITEBYTECODE=1 python3 tests/agent-workflow-audit-test.py
 bash tests/codex-config-test.sh
-git diff --check
+git --no-pager diff --check
