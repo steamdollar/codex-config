@@ -25,7 +25,7 @@
 - delegation depth는 1로 제한하며, 선후·입력·범위·판단 의존성이 없는 currently-ready 작업은 role과 무관하게 runtime concurrency 한도 내에서 병렬 실행한다. 서로 다른 role, 같은 role의 여러 instance, 혼합 구성이 모두 같은 규칙을 따른다.
 - Primary가 disjoint ownership을 명시하고 shared mutable target/state가 겹치지 않으면 write 작업도 병렬 실행할 수 있다. 같은 파일뿐 아니라 생성물·lockfile/manifest·migration/fixture·build output·외부 상태 같은 간접 shared state 충돌도 확인한다.
 - 결과가 다음 작업의 input·scope·판단을 좌우하거나 shared mutable state가 겹치면 작업 dependency graph 순서로 직렬화한다. 예상치 못한 overlap은 덮어쓰거나 되돌리지 말고 affected task를 재조정하며, material decision일 때만 사용자에게 묻는다.
-- 병렬 write가 끝나면 Primary가 combined diff와 relevant integration validation을 확인한다.
+- 병렬 write가 끝나면 Primary가 combined diff와 필요한 integration coverage를 확인한다. Sub-agent가 성공한 동일 verification은 결과가 stale하거나 잘못됐다는 구체적 근거 없이 Primary가 재실행하지 않는다.
 - scope와 risk가 유지되는 bounded follow-up에는 동일한 non-review agent를 재사용한다.
 
 # Primary 소통·상태 계약

@@ -154,7 +154,7 @@ for contract in (
     "delegation depth는 1로 제한하며, 선후·입력·범위·판단 의존성이 없는 currently-ready 작업은 role과 무관하게 runtime concurrency 한도 내에서 병렬 실행한다. 서로 다른 role, 같은 role의 여러 instance, 혼합 구성이 모두 같은 규칙을 따른다.",
     "Primary가 disjoint ownership을 명시하고 shared mutable target/state가 겹치지 않으면 write 작업도 병렬 실행할 수 있다. 같은 파일뿐 아니라 생성물·lockfile/manifest·migration/fixture·build output·외부 상태 같은 간접 shared state 충돌도 확인한다.",
     "결과가 다음 작업의 input·scope·판단을 좌우하거나 shared mutable state가 겹치면 작업 dependency graph 순서로 직렬화한다. 예상치 못한 overlap은 덮어쓰거나 되돌리지 말고 affected task를 재조정하며, material decision일 때만 사용자에게 묻는다.",
-    "병렬 write가 끝나면 Primary가 combined diff와 relevant integration validation을 확인한다.",
+    "병렬 write가 끝나면 Primary가 combined diff와 필요한 integration coverage를 확인한다. Sub-agent가 성공한 동일 verification은 결과가 stale하거나 잘못됐다는 구체적 근거 없이 Primary가 재실행하지 않는다.",
     "scope와 risk가 유지되는 bounded follow-up에는 동일한 non-review agent를 재사용한다.",
 ):
     if contract not in agents:
@@ -184,8 +184,8 @@ contracts = {
         "test code·fixture의 최소 변경은 Primary가 명시적으로 제외하지",
         "기존 coverage가 없거나 부족하면",
         "최소한의 targeted test를 작성·수정한다",
-        "변경한 layer와 직접 영향받는",
-        "변경하지 않은 layer나 unrelated suite까지 검증을 확대하지 않는다",
+        "가장 좁은 final validation batch를 한 번만 실행한다",
+        "Targeted test가 compile과 동작 경계를 함께 확인하면",
         "사용자에게 연락하거나 user-facing/final 결정을 내리거나 scope를 넓히거나",
         "`status`는 변경과 관련 검증이",
     ),

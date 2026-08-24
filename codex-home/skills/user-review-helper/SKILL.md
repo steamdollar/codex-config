@@ -1,6 +1,6 @@
 ---
 name: user-review-helper
-description: Help the user understand code the agent just wrote before reading it. Explain the outcome for a planner, then the architecture, layering, runtime instances, and data/control flow for a developer; visualize when useful, confirm understanding, and only then walk through the code. Use for "리뷰 세션", "같이 리뷰", "리뷰 순서", or questions about what a completed change does. Do not use for bug-finding code review, PR feedback, or generic system documentation.
+description: Help the user understand code the agent just wrote before reading it. Explain the outcome for a planner, then build an adaptive, instance-first developer mental model without assuming familiarity with the affected domain; reset the explanation from the earliest missing prerequisite when the user expresses confusion, confirm understanding, and only then walk through the code. Use for "리뷰 세션", "같이 리뷰", "리뷰 순서", or questions about what a completed change does. Do not use for bug-finding code review, PR feedback, or generic system documentation.
 ---
 
 # Architecture-first review walkthrough
@@ -37,6 +37,14 @@ Then explain only the architecture affected by this change:
 
 Use before/after framing when topology, ownership, or responsibility changed. Ground every claim in the inspected code; distinguish verified behavior from inference and name unresolved unknowns.
 
+### Default teaching level
+
+- Assume the user can read production code but may be new to the affected infrastructure, product domain, framework, or runtime. Do not infer domain familiarity from general engineering experience.
+- Start with runtime instances and one plain-language responsibility or relationship at a time. Define a new term before using it to explain another new term.
+- Prefer one concrete request, event, or data item traced end to end over a survey of abstractions. Split a broad instance such as an API server into smaller request flows when needed.
+- Introduce implementation mechanisms only after the user understands the need they serve. For example, establish "the server needs a configuration ID and permission" before SSM, IAM, ARN, or task-role details.
+- Use the user's named files as entry points, not an inspection boundary. Read enough surrounding code to explain the real runtime path.
+
 ### Visualize when it improves the model
 
 Use the smallest useful visual when the explanation involves several interacting components, a changed sequence, or ownership across layers:
@@ -47,12 +55,24 @@ Use the smallest useful visual when the explanation involves several interacting
 
 Prefer Mermaid where it renders reliably and compact ASCII otherwise. Keep instance boundaries explicit and label arrows with the action or data being transferred. Skip visualization for a genuinely simple change.
 
+### Reset on comprehension failure
+
+Treat explicit confusion such as "모르겠다", "하나도 이해가 안 된다", or an equivalent strong signal as evidence that the starting assumptions are wrong, not that the current explanation merely needs more detail.
+
+1. Stop the walkthrough immediately; do not continue to the next file or concept.
+2. State briefly which assumption or explanation level was mismatched without blaming the user.
+3. Discard assumed familiarity and locate the earliest missing prerequisite.
+4. Restart from the smallest useful relationship in plain language, with one concrete example or tightly mapped analogy and minimal jargon.
+5. Ask for a comprehension check before restoring implementation terminology or continuing.
+6. Preserve the newly successful abstraction level for the rest of the session. Use later questions and confirmations as calibration signals rather than interruptions.
+
 ## 4. Confirm understanding
 
 Stop after the planner and developer explanations. Ask the user to confirm the mental model or raise questions before entering files.
 
 - Do not include code links in this first response.
 - If the user corrects the explanation, verify the correction against the code and repair the model first.
+- If the user reports confusion, use the full comprehension reset above instead of paraphrasing the same explanation.
 - A direct request to proceed into the code counts as confirmation.
 
 ## 5. Walk through the code
@@ -62,8 +82,11 @@ After confirmation:
 - map the earlier architecture and runtime stages to absolute clickable file links,
 - order files by runtime/data flow, not alphabetically or by Git output,
 - start with the smallest critical path that explains the behavior,
+- walk through one concrete request or data flow per chunk; split a runtime instance into sub-chunks when it owns several distinct flows,
 - describe what changed in each file and which earlier responsibility it implements,
 - include tests or wiring only when they define behavior or clarify the critical path.
+
+End each substantial chunk with a one-sentence restatement in plain language and a clear next boundary. Do not advance past a newly introduced domain concept until the user's response indicates the model is holding.
 
 Let the user choose where to go deeper. Re-read the selected code and relevant context before answering. If the user identifies a possible defect, diagnose it only when requested; modify code only after an explicit fix request and then return to the walkthrough position.
 
