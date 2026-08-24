@@ -217,7 +217,7 @@ class ContextBudgetHookTest(unittest.TestCase):
         self.assertIn("tool calls=12", audit)
         self.assertIn("total output=12,314 bytes", audit)
         self.assertIn("max output=12,289 bytes", audit)
-        self.assertIn("likely reads=12 without reader spawn", audit)
+        self.assertNotIn("without reader spawn", audit)
         self.assertIn("exact duplicate command", audit)
         self.assertIn("explicit truncation marker", audit)
 

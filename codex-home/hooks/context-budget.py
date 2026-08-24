@@ -32,11 +32,6 @@ COMPLETION_TYPES = {
     "response_completed",
     "agent_turn_complete",
 }
-READ_COMMAND = re.compile(
-    r"(?<![\w-])(?:cat|sed|rg|grep|head|tail|awk|find|"
-    r"git\s+(?:show|diff|log|blame))(?:\s|$)",
-    re.IGNORECASE,
-)
 TRUNCATION_TEXT = re.compile(
     r"(?:warning:\s*)?truncated(?:\s+output)?|"
     r"output\s+(?:was\s+)?truncated|original\s+token\s+count|"
@@ -50,9 +45,7 @@ class TurnAudit:
     tool_calls: int
     total_output_bytes: int
     max_output_bytes: int
-    likely_reads: int
     duplicate_command: bool
-    reader_spawned: bool
     explicit_truncation: bool
 
 
@@ -217,24 +210,6 @@ def tool_command(payload: dict) -> str | None:
     return command if isinstance(command, str) else None
 
 
-def is_likely_content_read(payload: dict) -> bool:
-    command = tool_command(payload)
-    return bool(command and READ_COMMAND.search(command))
-
-
-def is_reader_spawn(payload: dict) -> bool:
-    name = payload.get("name")
-    name_text = name.lower() if isinstance(name, str) else ""
-    if "spawn_agent" in name_text or "agents.spawn" in name_text:
-        return True
-    values = [payload.get(key) for key in ("input", "arguments", "agent_type", "task_name")]
-    text = " ".join(value for value in values if isinstance(value, str)).lower()
-    return bool(
-        re.search(r"spawn(?:ed)?(?:.{0,80})\breader\b", text)
-        or re.search(r"\breader\b(?:.{0,80})spawn", text)
-    )
-
-
 def turn_audit(path: Path) -> TurnAudit | None:
     turn = latest_completed_turn(path)
     if turn is None:
@@ -242,8 +217,6 @@ def turn_audit(path: Path) -> TurnAudit | None:
     commands: list[str] = []
     total_output_bytes = 0
     max_output_bytes = 0
-    likely_reads = 0
-    reader_spawned = False
     explicit_truncation = False
     tool_calls = 0
     for event in turn:
@@ -256,9 +229,6 @@ def turn_audit(path: Path) -> TurnAudit | None:
             command = tool_command(payload)
             if command is not None:
                 commands.append(command)
-            if is_likely_content_read(payload):
-                likely_reads += 1
-            reader_spawned = reader_spawned or is_reader_spawn(payload)
         elif event_type in TOOL_OUTPUT_TYPES:
             output = payload.get("output")
             output_bytes = output_text_bytes(output)
@@ -269,9 +239,7 @@ def turn_audit(path: Path) -> TurnAudit | None:
         tool_calls=tool_calls,
         total_output_bytes=total_output_bytes,
         max_output_bytes=max_output_bytes,
-        likely_reads=likely_reads,
         duplicate_command=len(commands) != len(set(commands)),
-        reader_spawned=reader_spawned,
         explicit_truncation=explicit_truncation,
     )
 
@@ -284,8 +252,6 @@ def audit_message(audit: TurnAudit) -> str | None:
         violations.append(f"total output={audit.total_output_bytes:,} bytes")
     if audit.max_output_bytes > AUDIT_OUTPUT_LIMIT:
         violations.append(f"max output={audit.max_output_bytes:,} bytes")
-    if audit.likely_reads >= 3 and not audit.reader_spawned:
-        violations.append(f"likely reads={audit.likely_reads} without reader spawn")
     if audit.duplicate_command:
         violations.append("exact duplicate command")
     if audit.explicit_truncation:
