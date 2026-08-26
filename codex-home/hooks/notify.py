@@ -19,12 +19,31 @@ def main() -> int:
 
     try:
         if platform.system() == "Darwin":
+            import fcntl
+
+            with open(f"/tmp/codex-notify-{os.getuid()}.lock", "w") as dialog_lock:
+                try:
+                    fcntl.flock(dialog_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    pass
+                else:
+                    # The dialog inherits the fd, keeping the lock until it closes.
+                    subprocess.Popen(
+                        [
+                            "/usr/bin/osascript",
+                            "-e",
+                            "activate",
+                            "-e",
+                            'display dialog "Task complete." with title "Codex" buttons {"OK"} '
+                            'default button "OK" with icon note',
+                        ],
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        pass_fds=(dialog_lock.fileno(),),
+                    )
             subprocess.run(
-                [
-                    "osascript",
-                    "-e",
-                    'display notification "Task complete." with title "Codex" sound name "Glass"',
-                ],
+                ["/usr/bin/afplay", "/System/Library/Sounds/Glass.aiff"],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
