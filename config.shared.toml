@@ -10,6 +10,18 @@ enabled = true
 tool_namespace = "agents"
 hide_spawn_agent_metadata = false
 
+[agents.reader]
+config_file = "agent-roles/reader.toml"
+
+[agents.researcher]
+config_file = "agent-roles/researcher.toml"
+
+[agents.reviewer]
+config_file = "agent-roles/reviewer.toml"
+
+[agents.executor]
+config_file = "agent-roles/executor.toml"
+
 [plugins."github@openai-curated"]
 enabled = true
 

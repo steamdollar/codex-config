@@ -136,6 +136,14 @@ retired_terra_executor_source="$repo_root/codex-home/$retired_terra_executor_rel
 retired_terra_executor_target="$codex_home/$retired_terra_executor_rel"
 retired_terra_executor_cleanup_required=false
 retired_terra_executor_removed=false
+retired_agent_rels=(
+  "agents/reader.toml"
+  "agents/executor.toml"
+  "agents/researcher.toml"
+  "agents/reviewer.toml"
+)
+declare -a retired_agent_cleanup_required=()
+declare -a retired_agent_removed=()
 
 declare -a kinds=()
 declare -a sources=()
@@ -268,6 +276,22 @@ preflight_retired_terra_executor_migration() {
   fi
 }
 
+preflight_retired_agent_migration() {
+  local rel source target
+  for rel in "${retired_agent_rels[@]}"; do
+    source="$repo_root/codex-home/$rel"
+    target="$codex_home/$rel"
+    if same_link "$target" "$source"; then
+      retired_agent_cleanup_required+=("$rel")
+      printf 'REMOVE retired managed link %s\n' "$target"
+    elif [[ -L "$target" ]]; then
+      printf 'KEEP foreign retired symlink %s -> %s\n' "$target" "$(readlink "$target")"
+    elif [[ -e "$target" ]]; then
+      printf 'KEEP foreign retired target %s\n' "$target"
+    fi
+  done
+}
+
 compare_exact() {
   local kind=$1 source=$2 target=$3
   if [[ "$kind" == file ]]; then
@@ -284,6 +308,7 @@ preflight_install() {
   preflight_retired_planner_migration
   preflight_retired_advisor_migration
   preflight_retired_terra_executor_migration
+  preflight_retired_agent_migration
   preflight_legacy_reader_migration
   for i in "${!targets[@]}"; do
     kind=${kinds[$i]}
@@ -371,13 +396,13 @@ active_backup=""
 rollback_install() {
   local status=${1:-$?}
   trap - ERR INT TERM
-  if ((status != 0)) && { [[ -n "$active_backup" ]] || [[ "$retired_review_removed" == true ]] || [[ "$retired_sub_agents_removed" == true ]] || [[ "$retired_planner_removed" == true ]] || [[ "$retired_advisor_removed" == true ]] || [[ "$retired_terra_executor_removed" == true ]]; }; then
+  if ((status != 0)) && { [[ -n "$active_backup" ]] || [[ "$retired_review_removed" == true ]] || [[ "$retired_sub_agents_removed" == true ]] || [[ "$retired_planner_removed" == true ]] || [[ "$retired_advisor_removed" == true ]] || [[ "$retired_terra_executor_removed" == true ]] || ((${#retired_agent_removed[@]})); }; then
     if [[ -n "$active_backup" ]]; then
       printf 'ROLLBACK after failure, backup=%s\n' "$active_backup" >&2
     else
       printf 'ROLLBACK after failure (retired link)\n' >&2
     fi
-    local index rel target original
+    local index rel source target original
     if [[ -n "$active_backup" ]]; then
       for ((index=${#changed_targets[@]} - 1; index >= 0; index--)); do
         rel=${changed_targets[$index]}
@@ -403,6 +428,17 @@ rollback_install() {
         printf 'ROLLBACK preserved foreign legacy target %s\n' "$legacy_reader_target" >&2
       fi
     fi
+    for rel in "${retired_agent_removed[@]}"; do
+      source="$repo_root/codex-home/$rel"
+      target="$codex_home/$rel"
+      if [[ ! -e "$target" && ! -L "$target" ]]; then
+        mkdir -p -- "$(dirname -- "$target")"
+        ln -s -- "$source" "$target"
+        printf 'ROLLBACK restored retired managed link %s\n' "$target" >&2
+      else
+        printf 'ROLLBACK preserved foreign retired target %s\n' "$target" >&2
+      fi
+    done
     if [[ "$retired_review_removed" == true && ! -e "$retired_review_target" && ! -L "$retired_review_target" ]]; then
       mkdir -p -- "$(dirname -- "$retired_review_target")"
       ln -s -- "$retired_review_source" "$retired_review_target"
@@ -458,6 +494,9 @@ install_apply() {
     changes_required=true
   fi
   if [[ "$retired_terra_executor_cleanup_required" == true ]]; then
+    changes_required=true
+  fi
+  if ((${#retired_agent_cleanup_required[@]})); then
     changes_required=true
   fi
   if [[ "$legacy_reader_cleanup_required" == true ]]; then
@@ -533,6 +572,16 @@ install_apply() {
     rm -- "$retired_terra_executor_target"
     printf 'REMOVED retired managed link %s\n' "$retired_terra_executor_target"
   fi
+
+  for rel in "${retired_agent_cleanup_required[@]}"; do
+    source="$repo_root/codex-home/$rel"
+    target="$codex_home/$rel"
+    same_link "$target" "$source" \
+      || fail "retired symlink changed during install: $target"
+    rm -- "$target"
+    retired_agent_removed+=("$rel")
+    printf 'REMOVED retired managed link %s\n' "$target"
+  done
 
   if [[ "$legacy_reader_cleanup_required" == true ]]; then
     same_link "$legacy_reader_target" "$legacy_reader_source" \
