@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import base64
+import json
 import os
 import platform
 import subprocess
@@ -13,9 +15,15 @@ def is_wsl() -> bool:
     )
 
 
+def encode_ps_value(value: str) -> str:
+    return base64.b64encode(value.encode("utf-8")).decode("ascii")
+
+
 def main() -> int:
-    # Drain the Stop hook payload so large assistant messages cannot fill the pipe.
-    sys.stdin.read()
+    try:
+        hook_input = json.load(sys.stdin)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        hook_input = {}
 
     try:
         if platform.system() == "Darwin":
@@ -50,9 +58,20 @@ def main() -> int:
                 check=False,
             )
         elif is_wsl():
-            script = r'''
+            cwd = hook_input.get("cwd")
+            if not isinstance(cwd, str):
+                cwd = ""
+            distro = os.environ.get("WSL_DISTRO_NAME", "")
+
+            cwd_b64 = encode_ps_value(cwd)
+            distro_b64 = encode_ps_value(distro)
+
+            script = rf'''
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+
+$Cwd = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{cwd_b64}'))
+$Distro = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{distro_b64}'))
 
 $notification = New-Object System.Windows.Forms.NotifyIcon
 $notification.Icon = [System.Drawing.SystemIcons]::Information
@@ -60,6 +79,25 @@ $notification.BalloonTipIcon = [System.Windows.Forms.ToolTipIcon]::Info
 $notification.BalloonTipTitle = 'Codex'
 $notification.BalloonTipText = 'Task complete.'
 $notification.Visible = $true
+
+$notification.add_BalloonTipClicked({{
+    $focused = $false
+    if ($Distro -and $Cwd) {{
+        try {{
+            & wsl.exe -d $Distro --cd $Cwd code --reuse-window . *> $null
+            $focused = ($LASTEXITCODE -eq 0)
+        }} catch {{
+        }}
+    }}
+
+    if (-not $focused) {{
+        try {{
+            $shell = New-Object -ComObject WScript.Shell
+            $focused = $shell.AppActivate('Visual Studio Code')
+        }} catch {{
+        }}
+    }}
+}})
 
 [System.Media.SystemSounds]::Asterisk.Play()
 $notification.ShowBalloonTip(5000)
