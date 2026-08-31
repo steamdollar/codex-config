@@ -20,7 +20,7 @@
 - 전역 자동 라우팅은 위 표에 정의된 `reader`·`researcher`·`reviewer`·`executor`만 사용하며, 그 밖의 Codex built-in·unmanaged custom·project-specific role은 사용자가 명시적으로 요청하거나 적용되는 project/skill 지침이 명시적으로 요청할 때만 사용한다.
 
 - scope·dependency·risk가 단순하고 대화 의존성이 높거나 문구·단일 문서·작은 설정만 바꾸는 bounded 작업은 Primary가 직접 수행한다.
-- `executor`는 여러 파일의 구현, 독립된 targeted test, 병렬화처럼 위임이 context·risk·wall-clock time 측면에서 실질적인 이점을 줄 때만 호출하며 모든 write의 필수 관문으로 사용하지 않는다.
+- Primary는 test code 작성·수정과 장시간·대량 출력 가능성이 있는 test/build를 직접 수행하지 않고 `executor`에 위임한다. 그 밖의 여러 파일 구현, 독립된 targeted test, 병렬화처럼 위임이 context·risk·wall-clock time 측면에서 실질적인 이점을 줄 때 `executor`를 호출하며 모든 write의 필수 관문으로 사용하지 않는다.
 - `reviewer`를 제외한 role의 spawn 또는 attestation이 불가하면 `[DEGRADED: role/model not attested]`를 보고하고 bounded Primary fallback을 사용하며 다른 role로 조용히 대체하지 않는다.
 - delegation depth는 1로 제한한다. 위임이 이미 정당화된 작업 중 서로 독립적이고, 예상 wall-clock 절감이 setup·handoff·통합 비용보다 큰 currently-ready 작업만 runtime concurrency 한도 내에서 병렬 실행한다.
 - Primary가 disjoint ownership을 명시하고 shared mutable target/state가 겹치지 않으면 write 작업도 병렬 실행할 수 있다. 같은 파일뿐 아니라 생성물·lockfile/manifest·migration/fixture·build output·외부 상태 같은 간접 shared state 충돌도 확인한다.
@@ -50,6 +50,15 @@
 - `bulk`/`exploratory`/`multi-stream` log 읽기는 반드시 `reader`에 위임한다. Primary는 간결한 diagnosis와 evidence 위치를 받고, 결정에 필요한 bounded snippet만 직접 spot-check하며 raw bulk log output은 context에 들이지 않는다.
 - Agent는 결론과 뒷받침하는 근거만 간결하게 반환한다. Primary는 결정에 중요한 근거만 점검하고 변경되지 않은 범위를 다시 읽지 않는다.
 - 대화가 너무 길어지면 현재 작업이 끝나는 시점에 새 session을 시작하거나 `/compact`를 사용하자고 제안한다.
+
+# 검증 라우팅
+
+- 기본 검증은 변경한 동작과 직접 영향받는 경계를 다루는 가장 좁은 targeted final batch 한 번이다. Targeted test가 compile과 동작 경계를 함께 확인하면 별도 build, typecheck, lint를 추가하지 않는다.
+- test code 작성·수정과 Gradle·workspace build·full suite처럼 오래 걸리거나 출력이 큰 검증은 `executor`에 위임한다. Primary는 command, 대상, acceptance criteria와 종료 조건을 정하고 요약된 결과와 decision-critical evidence만 검수한다. Primary가 직접 실행할 수 있는 검증은 `git diff --check`, 작은 parser check처럼 빠르고 출력이 제한된 확인으로 한정한다.
+- full test·full build는 사용자가 명시적으로 요청하거나 authoritative repository acceptance criteria가 요구할 때만 실행한다. 이 요청은 기본적으로 broad run 한 번만 허가하며 반복 실행을 자동으로 허가하지 않는다.
+- 자신의 변경으로 검증이 실패하면 실패한 target만 수정 후 한 번 재실행한다. 전체 suite green 자체가 명시적 acceptance criteria일 때만 수정 후 final broad run을 한 번 더 실행한다.
+- pre-existing·unrelated failure 또는 whole-repo aggregate coverage 같은 global gate는 범위를 넓히거나 수치를 맞추기 위한 test padding을 하지 않는다. 의도된 golden drift는 해당 golden과 그 targeted test만 갱신하며, 그 밖에는 최소 원인과 validation gap을 보고한다.
+- Sub-agent가 성공한 동일 verification을 Primary가 재실행하지 않는다. 검증 범위·시간이 구현을 넘기 시작하거나 변경 동작을 직접 고정하지 않는 test 추가가 필요해지면 검증을 중단하고 scope expansion으로 보고한다.
 
 # 리뷰
 

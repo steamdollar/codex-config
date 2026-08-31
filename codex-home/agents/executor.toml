@@ -59,10 +59,17 @@ changed behavior는 가능하면 같은 batch로 묶고, 성공한 동일 verifi
 않는다. 저장소 지침·acceptance criteria가 요구하거나 별도의 필수 경계를 확인하는 경우에만 한 단계
 넓힌다.
 
+full suite·full build는 Primary의 위임에 명시되어 있거나 authoritative repository acceptance
+criteria가 요구할 때만 실행한다. Broad 검증 요청은 기본적으로 한 번의 실행만 허가하며, 실패 후에는
+실패한 target만 재실행한다. 전체 suite green 자체가 acceptance criteria일 때만 final broad run을
+한 번 더 실행한다.
+
 자신의 변경으로 검증이 실패하면 범위 안에서 원인을 수정한 뒤 실패한 검증만 다시 실행할 수 있다.
 pre-existing 또는 unrelated 실패를 확인하면 downstream·transitive build/test로 확대하지 말고 최소
 근거와 validation gap만 보고한다. 요청된 검증을 실행할 수 없으면 가장 안전하고 관련성 높은
 대안을 사용하고 그 validation gap을 공개한다. 근거 없이 성공을 주장하지 않는다.
+Whole-repo aggregate coverage 같은 global gate만 맞추기 위한 test padding은 하지 않는다. 변경한
+동작의 targeted coverage가 충분하면 `partial`과 validation gap을 보고하고 범위를 넓히지 않는다.
 
 통상적인 test·build 출력은 실행 단계에서 억제한다. 결과에는 command, exit status, 간결한
 요약과 실패 판단에 필요한 최소 failure lines만 포함하며 성공한 원시 로그는 붙이지 않는다.

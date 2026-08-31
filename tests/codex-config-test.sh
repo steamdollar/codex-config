@@ -147,7 +147,11 @@ if "role 또는 model을 검증할 수 없으면" in agents:
 for contract in (
     "scope·dependency·risk가 단순하고 대화 의존성이 높거나 문구·단일 문서·작은 설정만 바꾸는 bounded 작업은 Primary가 직접 수행한다.",
     "Primary는 작고 직접적인 읽기·실행과 알려진 단일 소스 확인을 직접 수행한다.",
-    "`executor`는 여러 파일의 구현, 독립된 targeted test, 병렬화처럼 위임이 context·risk·wall-clock time 측면에서 실질적인 이점을 줄 때만 호출하며 모든 write의 필수 관문으로 사용하지 않는다.",
+    "Primary는 test code 작성·수정과 장시간·대량 출력 가능성이 있는 test/build를 직접 수행하지 않고 `executor`에 위임한다.",
+    "기본 검증은 변경한 동작과 직접 영향받는 경계를 다루는 가장 좁은 targeted final batch 한 번이다.",
+    "full test·full build는 사용자가 명시적으로 요청하거나 authoritative repository acceptance criteria가 요구할 때만 실행한다.",
+    "whole-repo aggregate coverage 같은 global gate는 범위를 넓히거나 수치를 맞추기 위한 test padding을 하지 않는다.",
+    "검증 범위·시간이 구현을 넘기 시작하거나 변경 동작을 직접 고정하지 않는 test 추가가 필요해지면 검증을 중단하고 scope expansion으로 보고한다.",
     "`reviewer`를 제외한 role의 spawn 또는 attestation이 불가하면 `[DEGRADED: role/model not attested]`를 보고하고 bounded Primary fallback을 사용하며 다른 role로 조용히 대체하지 않는다.",
     "전역 자동 라우팅은 위 표에 정의된",
     "`reader`·`researcher`·`reviewer`·`executor`만 사용하며",
@@ -188,6 +192,8 @@ contracts = {
         "최소한의 targeted test를 작성·수정한다",
         "가장 좁은 final validation batch를 한 번만 실행한다",
         "Targeted test가 compile과 동작 경계를 함께 확인하면",
+        "full suite·full build는 Primary의 위임에 명시되어 있거나",
+        "Whole-repo aggregate coverage 같은 global gate만 맞추기 위한 test padding은 하지 않는다",
         "사용자에게 연락하거나 user-facing/final 결정을 내리거나 scope를 넓히거나",
         "`status`는 변경과 관련 검증이",
     ),
@@ -635,6 +641,56 @@ test_shared_config_has_no_machine_project_paths() {
   ! rg -q '^\[hooks\.state' "$repo_root/config.shared.toml" || fail "shared config contains machine-local hook trust"
 }
 
+test_notify_hook_dialog_routing() {
+  python3 - "$repo_root/codex-home/hooks/notify.py" <<'PY'
+import importlib.util
+import io
+import json
+import os
+import sys
+from unittest.mock import patch
+
+spec = importlib.util.spec_from_file_location("notify_hook", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(module)
+
+with patch.dict(os.environ, {"__CFBundleIdentifier": "com.microsoft.VSCode"}, clear=True):
+    assert module.conversation_deep_link({"session_id": "abc-123"}) == "vscode://openai.chatgpt/local/abc-123"
+    assert module.conversation_deep_link({"session_id": 'bad"id'}) is None
+with patch.dict(os.environ, {"TERM_PROGRAM": "vscode"}, clear=True):
+    assert module.conversation_deep_link({"session_id": "abc-123"}) == "vscode://openai.chatgpt/local/abc-123"
+with patch.dict(os.environ, {"VSCODE_IPC_HOOK_CLI": "pipe"}, clear=True):
+    assert module.conversation_deep_link({"session_id": "abc-123"}) == "vscode://openai.chatgpt/local/abc-123"
+with patch.dict(os.environ, {"__CFBundleIdentifier": "com.openai.codex"}, clear=True):
+    assert module.conversation_deep_link({"session_id": "abc-123"}) == "codex://threads/abc-123"
+
+payload = json.dumps({"session_id": "abc-123"})
+with (
+    patch.dict(os.environ, {"VSCODE_PID": "123"}, clear=True),
+    patch.object(module.platform, "system", return_value="Windows"),
+    patch.object(module.sys, "stdin", io.StringIO(payload)),
+    patch.object(module.subprocess, "Popen") as popen,
+):
+    assert module.main() == 0
+    command = popen.call_args.args[0]
+    assert command[:4] == ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command"]
+    assert "Text = 'Open'" in command[4] and "Text = 'OK'" in command[4]
+    assert "CodexCompletionDialog" in command[4]
+    assert "--reuse-window --open-url" in command[4]
+    assert popen.call_args.kwargs["env"]["CODEX_NOTIFY_DEEP_LINK"].endswith("/abc-123")
+    assert popen.call_args.kwargs["env"]["CODEX_NOTIFY_EDITOR_URI"] == (
+        "openai-codex://route/local/abc-123"
+    )
+
+with (
+    patch.object(module.platform, "system", return_value="Linux"),
+    patch.object(module.platform, "release", return_value="microsoft-standard-WSL2"),
+):
+    assert module.is_wsl()
+PY
+}
+
 test_config_sync() {
   local work="$tmp_root/sync-repo"
   cp -a -- "$repo_root" "$work"
@@ -735,6 +791,7 @@ test_hook_activation() {
 }
 
 test_shared_config_has_no_machine_project_paths
+test_notify_hook_dialog_routing
 test_config_sync
 test_fresh_config_fallback
 test_hook_activation
