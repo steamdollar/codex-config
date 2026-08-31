@@ -21,7 +21,7 @@
           },
           {
             "type": "command",
-            "command": "python3 \"${CODEX_HOME:-$HOME/.codex}/hooks/remote-notify.py\"",
+            "command": "python3 -c 'from pathlib import Path; import os, runpy; h=Path(os.environ.get(\"CODEX_HOME\", str(Path.home()/\".codex\"))); p=(h/\"hooks\"/\"notify.py\").resolve().parent/\"remote-notify.py\"; runpy.run_path(str(p), run_name=\"__main__\")'",
             "timeout": 3
           }
         ]
