@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import base64
 import json
 import os
 import platform
@@ -100,10 +101,14 @@ finally {
 '''
 
 
+def encode_ps_value(value: str) -> str:
+    return base64.b64encode(value.encode("utf-8")).decode("ascii")
+
+
 def main() -> int:
     try:
         hook_input = json.loads(sys.stdin.read())
-    except (json.JSONDecodeError, TypeError):
+    except (UnicodeDecodeError, json.JSONDecodeError, TypeError):
         hook_input = {}
     deep_link = conversation_deep_link(hook_input)
     editor_uri = (
@@ -180,7 +185,7 @@ def main() -> int:
                 stderr=subprocess.DEVNULL,
                 check=False,
             )
-        elif platform.system() == "Windows" or is_wsl():
+        elif platform.system() == "Windows":
             child_env = os.environ.copy()
             if deep_link:
                 child_env["CODEX_NOTIFY_DEEP_LINK"] = deep_link
@@ -196,6 +201,60 @@ def main() -> int:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 env=child_env,
+            )
+        elif is_wsl():
+            cwd = hook_input.get("cwd")
+            if not isinstance(cwd, str):
+                cwd = ""
+            distro = os.environ.get("WSL_DISTRO_NAME", "")
+
+            cwd_b64 = encode_ps_value(cwd)
+            distro_b64 = encode_ps_value(distro)
+
+            script = rf'''
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+$Cwd = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{cwd_b64}'))
+$Distro = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{distro_b64}'))
+
+$notification = New-Object System.Windows.Forms.NotifyIcon
+$notification.Icon = [System.Drawing.SystemIcons]::Information
+$notification.BalloonTipIcon = [System.Windows.Forms.ToolTipIcon]::Info
+$notification.BalloonTipTitle = 'Codex'
+$notification.BalloonTipText = 'Task complete.'
+$notification.Visible = $true
+
+$notification.add_BalloonTipClicked({{
+    $focused = $false
+    if ($Distro -and $Cwd) {{
+        try {{
+            & wsl.exe -d $Distro --cd $Cwd code --reuse-window . *> $null
+            $focused = ($LASTEXITCODE -eq 0)
+        }} catch {{
+        }}
+    }}
+
+    if (-not $focused) {{
+        try {{
+            $shell = New-Object -ComObject WScript.Shell
+            $focused = $shell.AppActivate('Visual Studio Code')
+        }} catch {{
+        }}
+    }}
+}})
+
+[System.Media.SystemSounds]::Asterisk.Play()
+$notification.ShowBalloonTip(5000)
+
+Start-Sleep -Seconds 5
+$notification.Dispose()
+'''
+            subprocess.Popen(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
     except OSError:
         pass

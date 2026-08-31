@@ -1,7 +1,7 @@
 # Portable Codex Config
 
 Private source of truth for user-authored Codex guidance, custom agents,
-rules, and custom skills. Live files under `$CODEX_HOME` are individual
+rules, and custom skills. Managed live entries under `$CODEX_HOME` are
 symlinks; managed skills and runtime state stay local.
 
 ## Managed scope
@@ -9,7 +9,7 @@ symlinks; managed skills and runtime state stay local.
 - Root guidance: `AGENTS.md`
 - Shared machine configuration: `config.shared.toml`; machine-local `config.toml`
 - Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
-- Custom-agent role bindings: `reader.toml`, `executor.toml`, `researcher.toml`, `reviewer.toml`
+- Custom-agent role bindings: relative `config_file` entries for `reader.toml`, `executor.toml`, `researcher.toml`, `reviewer.toml`
 - Custom rule: `default.rules`
 - Seven user-authored skills listed in `manifest.tsv`
 
@@ -50,12 +50,14 @@ Native custom agents use Codex's `MultiAgentV2` interface under the custom
 files under `~/.codex/agents`, as well as Codex built-in roles, are outside this
 repository's managed scope. Reader and executor bind to Luna, researcher binds
 to Terra, and reviewer binds to Sol.
-Runtime identity comes from each TOML `name`; `reviewer` is automatically routed
-for explicit code, design, or instruction/policy/config review.
-Role contracts live in `agents/*.toml` and are therefore stable when a model
-binding changes. Restart or reload the local Codex client (desktop/CLI/IDE; for
-example, reload the VS Code window) after changing this configuration, then
-start a new session so
+Runtime identity comes from each TOML `name`. The live `config.toml` symlink
+uses one portable `agent-roles` directory symlink instead of individual
+agent-file symlinks, which current Codex role loading rejects. `reviewer` is
+automatically routed for explicit code, design, or instruction/policy/config
+review. Role contracts live in `agents/*.toml` and are therefore stable when a
+model binding changes. Restart or reload the local Codex client (desktop/CLI/IDE;
+for example, reload the VS Code window) after changing this
+configuration, then start a new session so
 `agents.spawn_agent` exposes `reader`, `researcher`, `executor`, and `reviewer`
 role selection. Explicit review analysis is defined by
 `reviewer.toml` as a single-pass, risk-gated route with bounded evidence and no
@@ -77,8 +79,10 @@ cd "${CODEX_HOME:-$HOME/.codex}/codex-config"
 `setup.sh` first generates the local `config.toml`, then applies the versioned
 `manifest.tsv`: it creates symlinks for the root guidance and shared
 configuration files and also installs the lifecycle
-hook, custom agent, rule, and skill links without replacing `.system` or
-runtime state.
+hook, rule, and skill links without replacing `.system`, unmanaged custom
+agents, or runtime state. Custom agents are reached through the portable
+`agent-roles` directory symlink and relative bindings in the linked
+`config.toml`.
 Existing identical content is backed up before replacement; drift or foreign
 symlinks stop setup.
 

@@ -42,6 +42,17 @@ for key, value in expected_config.items():
     if config.get(key) != value:
         raise SystemExit(f"config.shared.toml {key}: expected {value!r}, got {config.get(key)!r}")
 
+expected_bindings = {
+    "reader": "agent-roles/reader.toml",
+    "executor": "agent-roles/executor.toml",
+    "researcher": "agent-roles/researcher.toml",
+    "reviewer": "agent-roles/reviewer.toml",
+}
+for name, path in expected_bindings.items():
+    actual = config.get("agents", {}).get(name, {}).get("config_file")
+    if actual != path:
+        raise SystemExit(f"config.shared.toml agents.{name}.config_file: expected {path!r}, got {actual!r}")
+
 expected_roles = {
     "reader.toml": {
         "name": "reader",
@@ -91,14 +102,11 @@ if "codex-home/agents/advisor.toml\tagents/advisor.toml\texact" in manifest:
     raise SystemExit("retired advisor.toml is still managed")
 if "terra-executor" in manifest:
     raise SystemExit("retired terra-executor.toml is still managed")
-if "codex-home/agents/executor.toml\tagents/executor.toml\texact" not in manifest:
-    raise SystemExit("manifest does not install executor.toml")
-if "codex-home/agents/researcher.toml\tagents/researcher.toml\texact" not in manifest:
-    raise SystemExit("manifest does not install researcher.toml")
-if "codex-home/agents/reader.toml\tagents/reader.toml\texact" not in manifest:
-    raise SystemExit("manifest does not install reader.toml")
-if "codex-home/agents/reviewer.toml\tagents/reviewer.toml\texact" not in manifest:
-    raise SystemExit("manifest does not install reviewer.toml")
+for name in expected_bindings:
+    if f"codex-home/agents/{name}.toml\tagents/{name}.toml\texact" in manifest:
+        raise SystemExit(f"manifest still installs retired {name}.toml symlink")
+if "dir\tcodex-home/agents\tagent-roles\texact" not in manifest:
+    raise SystemExit("manifest does not install the portable agent-roles directory link")
 if "codex-home/skills/agent-workflow-audit\tskills/agent-workflow-audit\texact" not in manifest:
     raise SystemExit("manifest does not install agent-workflow-audit")
 if "codex-home/skills/agent-efficiency-retro\tskills/agent-efficiency-retro\texact" not in manifest:
@@ -302,7 +310,6 @@ test_legacy_reader_migration() {
   local home="$tmp_root/legacy-reader-home" backup="$tmp_root/legacy-reader-backup"
   local old_target="$home/agents/luna-reader.toml"
   local old_source="$repo_root/codex-home/agents/luna-reader.toml"
-  local new_target="$home/agents/reader.toml"
   new_home "$home"
   mkdir -p -- "$(dirname -- "$old_target")"
   ln -s -- "$old_source" "$old_target"
@@ -311,7 +318,7 @@ test_legacy_reader_migration() {
   [[ -L "$old_target" ]] || fail "legacy link was removed during dry-run"
   "$installer" install --codex-home "$home" --backup-dir "$backup" --apply >/dev/null
   [[ ! -e "$old_target" && ! -L "$old_target" ]] || fail "legacy managed link remains after migration"
-  [[ -L "$new_target" && "$(readlink "$new_target")" == "$repo_root/codex-home/agents/reader.toml" ]] || fail "reader link was not installed"
+  [[ ! -e "$home/agents/reader.toml" && ! -L "$home/agents/reader.toml" ]] || fail "retired reader link was installed"
 
   local foreign_home="$tmp_root/foreign-legacy-reader-home"
   local foreign_target="$foreign_home/agents/luna-reader.toml"
@@ -322,6 +329,25 @@ test_legacy_reader_migration() {
   ln -s -- "$foreign_source" "$foreign_target"
   "$installer" install --codex-home "$foreign_home" --apply >/dev/null
   [[ -L "$foreign_target" && "$(readlink "$foreign_target")" == "$foreign_source" ]] || fail "foreign legacy link was removed"
+}
+
+test_retired_agent_migration() {
+  local home="$tmp_root/retired-agent-home" backup="$tmp_root/retired-agent-backup"
+  local name target source
+  new_home "$home"
+  mkdir -p -- "$home/agents"
+  for name in reader executor researcher reviewer; do
+    target="$home/agents/$name.toml"
+    source="$repo_root/codex-home/agents/$name.toml"
+    ln -s -- "$source" "$target"
+  done
+
+  "$installer" install --codex-home "$home" --backup-dir "$backup" --dry-run >/dev/null
+  [[ -L "$home/agents/reader.toml" ]] || fail "dry-run removed a retired agent link"
+  "$installer" install --codex-home "$home" --backup-dir "$backup" --apply >/dev/null
+  for name in reader executor researcher reviewer; do
+    [[ ! -e "$home/agents/$name.toml" && ! -L "$home/agents/$name.toml" ]] || fail "retired $name link remains after migration"
+  done
 }
 
 test_retired_review_migration() {
@@ -610,12 +636,15 @@ test_rollback_after_link_failure() {
   ln -s -- "$repo_root/codex-home/agents/planner.toml" "$home/agents/planner.toml"
   ln -s -- "$repo_root/codex-home/agents/advisor.toml" "$home/agents/advisor.toml"
   ln -s -- "$repo_root/codex-home/agents/terra-executor.toml" "$home/agents/terra-executor.toml"
+  for name in reader executor researcher reviewer; do
+    ln -s -- "$repo_root/codex-home/agents/$name.toml" "$home/agents/$name.toml"
+  done
   real_mv=$(command -v mv)
   {
     printf '%s\n' '#!/usr/bin/env bash'
     printf 'target=""; for arg do target=$arg; done\n'
     printf 'source=""; for arg do [[ "$arg" == *.codex-config.* ]] && source=$arg; done\n'
-    printf 'if [[ "$target" == %q && -n "$source" ]]; then exit 97; fi\n' "$home/agents/reader.toml"
+    printf 'if [[ "$target" == %q && -n "$source" ]]; then exit 97; fi\n' "$home/hooks.json"
     printf 'exec %q "$@"\n' "$real_mv"
   } > "$fake_bin/mv"
   chmod +x "$fake_bin/mv"
@@ -631,6 +660,9 @@ test_rollback_after_link_failure() {
   [[ -L "$home/agents/planner.toml" && "$(readlink "$home/agents/planner.toml")" == "$repo_root/codex-home/agents/planner.toml" ]] || fail "retired planner link was not restored after rollback"
   [[ -L "$home/agents/advisor.toml" && "$(readlink "$home/agents/advisor.toml")" == "$repo_root/codex-home/agents/advisor.toml" ]] || fail "retired advisor link was not restored after rollback"
   [[ -L "$home/agents/terra-executor.toml" && "$(readlink "$home/agents/terra-executor.toml")" == "$repo_root/codex-home/agents/terra-executor.toml" ]] || fail "retired terra-executor link was not restored after rollback"
+  for name in reader executor researcher reviewer; do
+    [[ -L "$home/agents/$name.toml" && "$(readlink "$home/agents/$name.toml")" == "$repo_root/codex-home/agents/$name.toml" ]] || fail "retired $name link was not restored after rollback"
+  done
   [[ -z "$(find "$home" -name '*.codex-config.*' -print -quit)" ]] || fail "temporary link remained after rollback"
 }
 
@@ -797,6 +829,7 @@ test_fresh_config_fallback
 test_hook_activation
 test_empty_install_verify_uninstall
 test_legacy_reader_migration
+test_retired_agent_migration
 test_retired_review_migration
 test_retired_sub_agents_migration
 test_retired_planner_migration
