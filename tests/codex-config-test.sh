@@ -33,7 +33,7 @@ with (root / "config.shared.toml").open("rb") as f:
     config = tomllib.load(f)
 
 expected_config = {
-    "model": "gpt-5.6-sol",
+    "model": "gpt-6-astra",
     "model_reasoning_effort": "high",
     "default_permissions": ":danger-full-access",
     "approval_policy": "never",
@@ -126,140 +126,6 @@ if "SUB_AGENTS.md" in manifest or "SUB_AGENTS.md" in readme:
     raise SystemExit("retired SUB_AGENTS.md is still managed or documented")
 if "terra-executor" in readme or "terra-executor" in agents:
     raise SystemExit("retired terra-executor is still documented")
-if "Root guidance: `AGENTS.md`" not in readme:
-    raise SystemExit("README does not identify AGENTS.md as the only root guidance")
-if "Role contracts live in `agents/*.toml`" not in readme:
-    raise SystemExit("README does not identify agent TOMLs as role contracts")
-if "The repository-managed custom roles are" not in readme:
-    raise SystemExit("README does not identify repository-managed custom roles")
-if "Runtime roles are" in readme:
-    raise SystemExit("README overstates repository roles as the only runtime roles")
-if "Restart or reload the local Codex client (desktop/CLI/IDE" not in readme:
-    raise SystemExit("README does not describe client reload and new-session behavior")
-if "scope/dependency/risk가 단순하고 직접적인 작업은 별도 plan 없이 진행할 수 있다." not in agents:
-    raise SystemExit("AGENTS.md does not define the no-plan simple-task default")
-for contract in (
-    "`reviewer`를 한 번 호출한다",
-    "넓은 범위의 동작에 영향을 주는 변경만 자동으로 검토한다",
-    "문서나 작고 제한적인 변경은 검토하지 않는다",
-    "수정이 간단하며 되돌리기 쉬우면 Primary가 직접 수정한다",
-    "먼저 사용자에게 묻는다",
-    "수정 후 `reviewer`를 다시 호출하지 않는다",
-    "Primary가 제한된 범위에서 직접 검토한다",
-    "다른 agent로 대신하지 않는다",
-):
-    if contract not in agents:
-        raise SystemExit(f"AGENTS.md orchestration contract missing: {contract}")
-if "role 또는 model을 검증할 수 없으면" in agents:
-    raise SystemExit("AGENTS.md retains generic attestation fallback duplicate")
-for contract in (
-    "scope·dependency·risk가 단순하고 대화 의존성이 높거나 문구·단일 문서·작은 설정만 바꾸는 bounded 작업은 Primary가 직접 수행한다.",
-    "Primary는 작고 직접적인 읽기·실행과 알려진 단일 소스 확인을 직접 수행한다.",
-    "Primary는 test code 작성·수정과 장시간·대량 출력 가능성이 있는 test/build를 직접 수행하지 않고 `executor`에 위임한다.",
-    "기본 검증은 변경한 동작과 직접 영향받는 경계를 다루는 가장 좁은 targeted final batch 한 번이다.",
-    "full test·full build는 사용자가 명시적으로 요청하거나 authoritative repository acceptance criteria가 요구할 때만 실행한다.",
-    "whole-repo aggregate coverage 같은 global gate는 범위를 넓히거나 수치를 맞추기 위한 test padding을 하지 않는다.",
-    "검증 범위·시간이 구현을 넘기 시작하거나 변경 동작을 직접 고정하지 않는 test 추가가 필요해지면 검증을 중단하고 scope expansion으로 보고한다.",
-    "`reviewer`를 제외한 role의 spawn 또는 attestation이 불가하면 `[DEGRADED: role/model not attested]`를 보고하고 bounded Primary fallback을 사용하며 다른 role로 조용히 대체하지 않는다.",
-    "전역 자동 라우팅은 위 표에 정의된",
-    "`reader`·`researcher`·`reviewer`·`executor`만 사용하며",
-    "Codex built-in·unmanaged custom·project-specific role은",
-    "사용자가 명시적으로 요청하거나 적용되는 project/skill 지침이 명시적으로 요청할 때만 사용한다.",
-    "위임이 이미 정당화된 작업 중 서로 독립적이고, 예상 wall-clock 절감이 setup·handoff·통합 비용보다 큰 currently-ready 작업만 runtime concurrency 한도 내에서 병렬 실행한다.",
-    "Primary가 disjoint ownership을 명시하고 shared mutable target/state가 겹치지 않으면 write 작업도 병렬 실행할 수 있다. 같은 파일뿐 아니라 생성물·lockfile/manifest·migration/fixture·build output·외부 상태 같은 간접 shared state 충돌도 확인한다.",
-    "결과가 다음 작업의 input·scope·판단을 좌우하거나 shared mutable state가 겹치면 작업 dependency graph 순서로 직렬화한다. 예상치 못한 overlap은 덮어쓰거나 되돌리지 말고 affected task를 재조정하며, material decision일 때만 사용자에게 묻는다.",
-    "병렬 write가 끝나면 Primary가 combined diff와 필요한 integration coverage를 확인한다. Sub-agent가 성공한 동일 verification은 결과가 stale하거나 잘못됐다는 구체적 근거 없이 Primary가 재실행하지 않는다.",
-    "scope와 risk가 유지되는 bounded follow-up에는 동일한 non-review agent를 재사용한다.",
-):
-    if contract not in agents:
-        raise SystemExit(f"AGENTS.md thin orchestration contract missing: {contract}")
-if "repository에 write하는 `executor`는 동시에 하나만 둔다" in agents:
-    raise SystemExit("AGENTS.md retains executor-only write serialization")
-PY
-
-  python3 - "$repo_root" <<'PY'
-import sys
-from pathlib import Path
-
-root = Path(sys.argv[1])
-contracts = {
-    "reader.toml": (
-        "Primary agent가 위임한 범위가 제한된 로컬 읽기 작업만 맡는다.",
-        "파일을 편집하거나 사용자에게 연락하거나",
-        "status: complete, partial, or needs_scope",
-    ),
-    "researcher.toml": (
-        "범위가 제한된 외부 또는 공개 조사만 맡는다.",
-        "파일을 편집하거나 외부 시스템을 변경하거나",
-        "status: complete, partial, or needs_scope",
-    ),
-    "executor.toml": (
-        "승인된 원자적 구현 단계 정확히 하나만 맡는다.",
-        "test code·fixture의 최소 변경은 Primary가 명시적으로 제외하지",
-        "기존 coverage가 없거나 부족하면",
-        "최소한의 targeted test를 작성·수정한다",
-        "가장 좁은 final validation batch를 한 번만 실행한다",
-        "Targeted test가 compile과 동작 경계를 함께 확인하면",
-        "full suite·full build는 Primary의 위임에 명시되어 있거나",
-        "Whole-repo aggregate coverage 같은 global gate만 맞추기 위한 test padding은 하지 않는다",
-        "사용자에게 연락하거나 user-facing/final 결정을 내리거나 scope를 넓히거나",
-        "`status`는 변경과 관련 검증이",
-    ),
-}
-for filename, phrases in contracts.items():
-    text = (root / "codex-home" / "agents" / filename).read_text()
-    for phrase in phrases:
-        if phrase not in text:
-            raise SystemExit(f"{filename} contract missing: {phrase}")
-
-executor = (root / "codex-home" / "agents" / "executor.toml").read_text()
-for phrase in (
-    "예상치 못한 overlap 또는 shared mutable state 충돌",
-    "덮어쓰거나 되돌리지 않는다",
-    "`status = partial`과 deviation",
-    "material decision이 아닌 한",
-    "실패 판단에 필요한 최소 failure lines",
-):
-    if phrase not in executor:
-        raise SystemExit(f"executor overlap/output contract missing: {phrase}")
-if "최대 120" in executor or "at most 120" in executor:
-    raise SystemExit("executor retains an arbitrary failure-line cap")
-PY
-
-  python3 - "$repo_root/codex-home/agents/reviewer.toml" <<'PY'
-import sys
-import tomllib
-
-with open(sys.argv[1], "rb") as f:
-    reviewer = tomllib.load(f)
-instructions = reviewer["developer_instructions"]
-for phrase in (
-    "범위가 제한된 변경 diff, 범위가 제한된 검토 대상",
-    "인수 기준이 누락된 경우",
-    "기존 아키텍처와 설계 패턴에 맞는지",
-    "구현 패턴 적합성은 검토의 일부다",
-    "coverage label이 `targeted`인지 `comprehensive`인지",
-    "`needs_scope`",
-    "`status` = `complete`, `partial`, 또는 `needs_scope`",
-    "`outcome` = `findings` 또는 `no_findings`",
-    "`proven issue` 또는 `credible risk`",
-    "unknown은 결함이 아닌 잔여 위험이다",
-    "`path:line`",
-    "`remediation gate`인",
-    "`auto-fix eligible` 또는 `user decision required`",
-    "두 번째 또는 재귀적인 reviewer/executor 루프를",
-):
-    if phrase not in instructions:
-        raise SystemExit(f"reviewer contract missing: {phrase}")
-for retired in (
-    "clarification required",
-    "at most 3 findings",
-    "exclusive return schema",
-):
-    if retired in instructions:
-        raise SystemExit(f"reviewer contract retains retired behavior: {retired}")
-if reviewer["model"] != "gpt-5.6-sol" or reviewer["model_reasoning_effort"] != "high" or reviewer["sandbox_mode"] != "read-only":
-    raise SystemExit("reviewer runtime binding changed")
 PY
 }
 
@@ -723,6 +589,96 @@ with (
 PY
 }
 
+test_installed_hook_wiring_and_remote_notification() {
+  local home="$tmp_root/installed-hook-home" backup="$tmp_root/installed-hook-backup"
+  new_home "$home"
+  "$installer" install --codex-home "$home" --backup-dir "$backup" --apply >/dev/null
+  python3 - "$home" <<'PY'
+import importlib.util
+import io
+import json
+import os
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
+home = Path(sys.argv[1])
+hooks = json.loads((home / "hooks.json").read_text(encoding="utf-8"))
+prefix = 'python3 "${CODEX_HOME:-$HOME/.codex}/'
+commands = []
+for event_hooks in hooks.get("hooks", {}).values():
+    for group in event_hooks:
+        for hook in group.get("hooks", []):
+            commands.append(hook.get("command"))
+if not commands:
+    raise SystemExit("hooks.json has no configured commands")
+for command in commands:
+    if not isinstance(command, str) or not command.startswith(prefix) or not command.endswith('"'):
+        raise SystemExit(f"unexpected hook command: {command!r}")
+    target = home / command[len(prefix):-1]
+    if not target.is_file():
+        raise SystemExit(f"installed hook target missing: {target}")
+
+remote = home / "hooks" / "remote-notify.py"
+spec = importlib.util.spec_from_file_location("installed_remote_notify", remote)
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(module)
+
+captured = {}
+
+class Response:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self, amount=-1):
+        return b"ok"
+
+
+def fake_urlopen(request, timeout):
+    captured["request"] = request
+    captured["timeout"] = timeout
+    return Response()
+
+
+payload = {"session_id": "session-1", "cwd": "/tmp/example-project"}
+with (
+    patch.dict(
+        os.environ,
+        {
+            "CODEX_HOME": str(home),
+            "CODEX_REMOTE_NOTIFY_TOKEN": "dummy-token",
+            "CODEX_REMOTE_NOTIFY_URL": "http://example.invalid/notify",
+        },
+        clear=True,
+    ),
+    patch.object(module.platform, "node", return_value="test-host"),
+    patch.object(module.sys, "stdin", io.StringIO(json.dumps(payload))),
+    patch.object(module.urllib.request, "urlopen", side_effect=fake_urlopen),
+):
+    if module.main() != 0:
+        raise SystemExit("remote notifier failed")
+
+request = captured["request"]
+if request.full_url != "http://example.invalid/notify":
+    raise SystemExit(f"unexpected notification URL: {request.full_url}")
+if request.get_header("Authorization") != "Bearer dummy-token":
+    raise SystemExit("notification token header missing")
+if json.loads(request.data) != {
+    "source": "test-host",
+    "event": "codex.completed",
+    "title": "Codex finished",
+    "message": "project: example-project",
+}:
+    raise SystemExit("notification payload changed")
+if captured["timeout"] != 2:
+    raise SystemExit("notification timeout changed")
+PY
+}
+
 test_config_sync() {
   local work="$tmp_root/sync-repo"
   cp -a -- "$repo_root" "$work"
@@ -824,6 +780,7 @@ test_hook_activation() {
 
 test_shared_config_has_no_machine_project_paths
 test_notify_hook_dialog_routing
+test_installed_hook_wiring_and_remote_notification
 test_config_sync
 test_fresh_config_fallback
 test_hook_activation

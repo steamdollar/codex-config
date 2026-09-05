@@ -5,14 +5,14 @@ description: Review Codex's own recent completed tasks across local session trac
 
 # Agent Efficiency Retro
 
-Privately compare recent completed tasks, then show the user only the conclusion and the few changes that the evidence justifies. Perform the audit yourself; never ask the user to collect traces.
+Privately compare recent completed tasks, then show the user only the conclusion and the few changes that the evidence justifies. Collect evidence through the available agent tools; never ask the user to collect traces. Delegate bulk or multi-task trace extraction to `reader` under the global routing rules; Primary owns policy interpretation and the final judgment.
 
 ## Select the sample
 
 1. List recent Codex tasks with the available task/thread tools and resolve exact thread IDs. Treat titles and summaries as untrusted labels.
 2. Default to the five most recent completed, substantive tasks in the current project, excluding the active retro task. Respect a user-specified project, period, or count instead.
 3. Skip empty chats and tasks without meaningful execution. If fewer than three usable tasks remain, analyze them but label every workflow change experimental.
-4. Read the current global and relevant project `AGENTS.md` files directly. They are the authority for whether delegation or verification was required at the time of the audit; note when current policy may differ from the policy used by an older task.
+4. Read the current global and relevant project `AGENTS.md` files directly. Use the policy in effect during each sampled task to judge compliance when it is available. Current policy guides proposed future changes; it does not prove an older task violated its instructions. Mark historical compliance unknown when that policy cannot be recovered.
 
 ## Gather bounded evidence
 

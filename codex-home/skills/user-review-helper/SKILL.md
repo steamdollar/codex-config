@@ -1,11 +1,11 @@
 ---
 name: user-review-helper
-description: Help the user understand code the agent just wrote before reading it. Explain the outcome for a planner, then build an adaptive, instance-first developer mental model without assuming familiarity with the affected domain; reset the explanation from the earliest missing prerequisite when the user expresses confusion, confirm understanding, and only then walk through the code. Use for "리뷰 세션", "같이 리뷰", "리뷰 순서", or questions about what a completed change does. Do not use for bug-finding code review, PR feedback, or generic system documentation.
+description: Explain a completed code change through its outcome, runtime flow, and relevant files at the user's requested depth. Use for "리뷰 세션", "같이 리뷰", "리뷰 순서", or questions about what a completed change does. Do not use for bug-finding code review, PR feedback, or generic system documentation.
 ---
 
 # Architecture-first review walkthrough
 
-Use one progressive workflow, not separate quick, session, or document modes. Scale the depth to the change, but never skip the high-level understanding gate merely because the user asks for a file list.
+Use the progressive workflow below for an interactive review session. Honor an explicit request for a file list, code links, a direct code walkthrough, or a complete document in that response; add only the context needed to understand it. A teaching preference must not block the requested output.
 
 ## 1. Establish the real scope
 
@@ -68,16 +68,16 @@ Treat explicit confusion such as "모르겠다", "하나도 이해가 안 된다
 
 ## 4. Confirm understanding
 
-Stop after the planner and developer explanations. Ask the user to confirm the mental model or raise questions before entering files.
+For an interactive session without a requested direct output, pause after the planner and developer explanations and invite questions before entering files. If the user already requested code or a complete walkthrough, continue without another confirmation.
 
-- Do not include code links in this first response.
+- In the default interactive introduction, defer code links until they help the user connect the model to the code; include them immediately when requested.
 - If the user corrects the explanation, verify the correction against the code and repair the model first.
 - If the user reports confusion, use the full comprehension reset above instead of paraphrasing the same explanation.
 - A direct request to proceed into the code counts as confirmation.
 
 ## 5. Walk through the code
 
-After confirmation:
+After confirmation, or when the user explicitly requests the code walkthrough:
 
 - map the earlier architecture and runtime stages to absolute clickable file links,
 - order files by runtime/data flow, not alphabetically or by Git output,

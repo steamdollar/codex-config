@@ -4,6 +4,7 @@ file	config.toml	config.toml	exact
 file	codex-home/hooks.json	hooks.json	exact
 file	codex-home/hooks/context-budget.py	hooks/context-budget.py	exact
 file	codex-home/hooks/notify.py	hooks/notify.py	exact
+file	codex-home/hooks/remote-notify.py	hooks/remote-notify.py	exact
 dir	codex-home/agents	agent-roles	exact
 file	codex-home/rules/default.rules	rules/default.rules	exact
 dir	codex-home/skills/agent-efficiency-retro	skills/agent-efficiency-retro	exact

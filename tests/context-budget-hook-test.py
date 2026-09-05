@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import runpy
 import stat
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -74,7 +76,7 @@ class ContextBudgetHookTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 
-    def write_events(self, *events: dict | str) -> None:
+    def write_events(self, *events: object) -> None:
         lines = [event if isinstance(event, str) else json.dumps(event) for event in events]
         self.transcript.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -145,9 +147,15 @@ class ContextBudgetHookTest(unittest.TestCase):
         self.write_events(
             token_event(900, 1000),
             "not-json",
+            ["valid-json-non-object"],
             token_event(100, 1000),
         )
         self.assert_silent(self.run_hook())
+
+    def test_non_object_after_valid_token_event_is_ignored(self) -> None:
+        self.write_events(token_event(900, 1000), ["valid-json-non-object"])
+        context = self.additional_context(self.run_hook("non-object-token-event"))
+        self.assertIn("[Context budget]", context)
 
     def test_missing_or_malformed_input_fails_open(self) -> None:
         self.write_events(token_event(900, 1000))
@@ -201,6 +209,63 @@ class ContextBudgetHookTest(unittest.TestCase):
         )
         self.assert_silent(self.run_hook("clean-turn"))
 
+    def test_latest_completed_turn_isolated_from_active_newer_turn(self) -> None:
+        self.write_events(
+            event_marker("task_started"),
+            event_message("user"),
+            tool_call("completed command"),
+            tool_call("completed command"),
+            event_marker("task_complete"),
+            event_marker("task_started"),
+            event_message("user"),
+            *(tool_call(f"active command {index}") for index in range(12)),
+        )
+        audit = self.additional_context(self.run_hook("active-newer-turn"))
+        self.assertIn("exact duplicate command", audit)
+        self.assertNotIn("tool calls=", audit)
+
+    def test_latest_completed_turn_stops_reverse_scan_at_task_started(self) -> None:
+        hook = runpy.run_path(str(HOOK), run_name="context_budget_hook_test")
+        completed = event_marker("task_complete")
+        user = event_message("user")
+        started = event_marker("task_started")
+
+        def guarded_reverse_lines(path: Path):
+            yield json.dumps(completed).encode()
+            yield json.dumps(user).encode()
+            yield json.dumps(started).encode()
+            raise AssertionError("reverse scan consumed older history")
+
+        with patch.dict(
+            hook["latest_completed_turn"].__globals__,
+            {"reverse_lines": guarded_reverse_lines},
+        ):
+            turn = hook["latest_completed_turn"](self.transcript)
+        self.assertEqual(turn, [started, user, completed])
+
+    def test_modern_turn_keeps_mid_turn_user_messages(self) -> None:
+        self.write_events(
+            event_marker("task_started"),
+            event_message("user"),
+            tool_call("same command"),
+            event_message("user"),
+            tool_call("same command"),
+            event_marker("task_complete"),
+        )
+        audit = self.additional_context(self.run_hook("mid-turn-user"))
+        self.assertIn("[Turn audit diagnostic]", audit)
+        self.assertIn("exact duplicate command", audit)
+
+    def test_legacy_turn_without_task_started_uses_latest_user_boundary(self) -> None:
+        self.write_events(
+            event_message("user"),
+            tool_call("legacy command"),
+            tool_call("legacy command"),
+            event_marker("task_complete"),
+        )
+        audit = self.additional_context(self.run_hook("legacy-turn"))
+        self.assertIn("exact duplicate command", audit)
+
     def test_violating_completed_turn_reports_each_audit_trigger(self) -> None:
         events: list[dict] = [
             token_event(100, 1000),
@@ -213,7 +278,7 @@ class ContextBudgetHookTest(unittest.TestCase):
         events.append(event_marker("task_complete"))
         self.write_events(*events)
         audit = self.additional_context(self.run_hook("violating-turn"))
-        self.assertIn("[Turn audit]", audit)
+        self.assertIn("[Turn audit diagnostic]", audit)
         self.assertIn("tool calls=12", audit)
         self.assertIn("total output=12,314 bytes", audit)
         self.assertIn("max output=12,289 bytes", audit)
@@ -243,7 +308,7 @@ class ContextBudgetHookTest(unittest.TestCase):
         )
         context = self.additional_context(self.run_hook("context-and-audit"))
         self.assertIn("[Context budget]", context)
-        self.assertIn("[Turn audit]", context)
+        self.assertIn("[Turn audit diagnostic]", context)
 
 
 if __name__ == "__main__":

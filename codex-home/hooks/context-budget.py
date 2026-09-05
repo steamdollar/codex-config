@@ -75,6 +75,8 @@ def latest_usage(path: Path) -> tuple[int, int] | None:
                 event = json.loads(raw_line)
             except (UnicodeDecodeError, json.JSONDecodeError):
                 continue
+            if not isinstance(event, dict):
+                continue
             if event.get("type") != "event_msg":
                 continue
             payload = event.get("payload")
@@ -100,19 +102,6 @@ def latest_usage(path: Path) -> tuple[int, int] | None:
     except OSError:
         return None
     return None
-
-
-def transcript_events(path: Path) -> list[dict]:
-    events: list[dict] = []
-    with path.open("rb") as transcript:
-        for raw_line in transcript:
-            try:
-                event = json.loads(raw_line)
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                continue
-            if isinstance(event, dict):
-                events.append(event)
-    return events
 
 
 def event_payload(event: dict) -> dict | None:
@@ -144,29 +133,36 @@ def is_turn_complete(event: dict) -> bool:
 
 
 def latest_completed_turn(path: Path) -> list[dict] | None:
+    reverse_turn: list[dict] = []
+    completion_found = False
+    fallback_user_index: int | None = None
     try:
-        events = transcript_events(path)
+        for raw_line in reverse_lines(path):
+            try:
+                event = json.loads(raw_line)
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if not isinstance(event, dict):
+                continue
+            if not completion_found:
+                if is_turn_complete(event):
+                    completion_found = True
+                    reverse_turn.append(event)
+                continue
+
+            if is_turn_complete(event):
+                break
+            reverse_turn.append(event)
+            if is_turn_start(event):
+                turn = list(reversed(reverse_turn))
+                return turn if any(is_user_event(item) for item in turn) else None
+            if fallback_user_index is None and is_user_event(event):
+                fallback_user_index = len(reverse_turn) - 1
     except OSError:
         return None
-    completed_indexes = [
-        index for index, event in enumerate(events) if is_turn_complete(event)
-    ]
-    if not completed_indexes:
+    if not completion_found or fallback_user_index is None:
         return None
-    complete_index = completed_indexes[-1]
-    start_indexes = [
-        index for index, event in enumerate(events[:complete_index]) if is_turn_start(event)
-    ]
-    if start_indexes:
-        start_index = start_indexes[-1]
-    else:
-        user_indexes = [
-            index for index, event in enumerate(events[:complete_index]) if is_user_event(event)
-        ]
-        if not user_indexes:
-            return None
-        start_index = user_indexes[-1]
-    turn = events[start_index : complete_index + 1]
+    turn = list(reversed(reverse_turn[: fallback_user_index + 1]))
     return turn if any(is_user_event(event) for event in turn) else None
 
 
@@ -245,18 +241,18 @@ def turn_audit(path: Path) -> TurnAudit | None:
 
 
 def audit_message(audit: TurnAudit) -> str | None:
-    violations: list[str] = []
+    diagnostics: list[str] = []
     if audit.tool_calls >= 12:
-        violations.append(f"tool calls={audit.tool_calls}")
+        diagnostics.append(f"tool calls={audit.tool_calls}")
     if audit.total_output_bytes > AUDIT_OUTPUT_LIMIT:
-        violations.append(f"total output={audit.total_output_bytes:,} bytes")
+        diagnostics.append(f"total output={audit.total_output_bytes:,} bytes")
     if audit.max_output_bytes > AUDIT_OUTPUT_LIMIT:
-        violations.append(f"max output={audit.max_output_bytes:,} bytes")
+        diagnostics.append(f"max output={audit.max_output_bytes:,} bytes")
     if audit.duplicate_command:
-        violations.append("exact duplicate command")
+        diagnostics.append("exact duplicate command")
     if audit.explicit_truncation:
-        violations.append("explicit truncation marker")
-    return f"[Turn audit] {'; '.join(violations)}." if violations else None
+        diagnostics.append("explicit truncation marker")
+    return f"[Turn audit diagnostic] {'; '.join(diagnostics)}." if diagnostics else None
 
 
 def threshold(context_window: int) -> int | None:
@@ -319,9 +315,8 @@ def claim_warning(session_id: str) -> bool:
 def warning_message(input_tokens: int, context_window: int) -> str:
     percentage = input_tokens / context_window * 100
     action = (
-        "In your next response, explicitly recommend starting a new tab at the "
-        "next clean boundary and offer a PLAN/ADR/task handoff. Do not interrupt an "
-        "unsafe or incomplete atomic action."
+        "At a clean boundary, consider using /compact or preparing a handoff if "
+        "useful. Do not interrupt an unsafe or incomplete atomic action."
     )
     return (
         f"[Context budget] {input_tokens:,} / {context_window:,} input tokens "

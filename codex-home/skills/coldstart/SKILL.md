@@ -19,7 +19,7 @@ Preserve the user's task wording when practical. Treat plans, specs, branches, r
 
 ## Build the handoff
 
-Use the latest verified session state. Prefer directly observed repo/tool state over explicit user decisions, verified progress reports, plans, and inference, in that order.
+Use explicit user decisions to establish intent, scope, and authorization. Use directly observed repo/tool state to establish what actually exists or ran. If these differ, preserve both the intended outcome and the remaining work; never let an unfinished or stale artifact override the user's decision. Distinguish verified progress from plans and inference.
 
 1. State the exact task, scope boundary, and intended end state.
 2. Derive 2-3 observable completion conditions and the immediate next action only from verified state. If they are not known, omit them or mark them unknown instead of designing new work.

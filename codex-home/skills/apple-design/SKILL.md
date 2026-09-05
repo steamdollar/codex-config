@@ -5,6 +5,8 @@ description: Apply or review Apple-style web interface design with gestures, spr
 
 # Apple Design
 
+Apply only the techniques needed for the requested interface and its existing design system. The examples below are design guidance, not requirements to add gestures, glass, sound, springs, or a dependency to every screen. Prefer native controls and existing animation tools; add a spring implementation only when the requested interaction needs velocity continuity. Preserve semantic controls, keyboard access, focus handling, and cancellation when adapting pointer examples.
+
 How Apple builds interfaces that stop feeling like a computer and start feeling like an extension of you. This knowledge comes from Apple's WWDC design talks — chiefly *Designing Fluid Interfaces* (WWDC 2018) — distilled and translated into the web platform (CSS, Pointer Events, `requestAnimationFrame`, spring libraries like Motion/Framer Motion).
 
 The through-line: **an interface feels alive when motion starts from the current on-screen value, inherits the user's velocity, projects momentum forward, and can be grabbed and reversed at any instant.** Springs are the tool that makes all of this natural, because they are inherently interruptible and velocity-aware.

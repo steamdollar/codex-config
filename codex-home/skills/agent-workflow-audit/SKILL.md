@@ -5,7 +5,7 @@ description: Analyze and visualize a Codex task's Primary and subagent workflow 
 
 # Agent Workflow Audit
 
-Turn a completed task turn into a concise, evidence-backed workflow report. Run the bundled extractor yourself; never ask the user to execute it.
+Turn a completed task turn into a concise, evidence-backed workflow report. Run the bundled extractor through the available agent tools; never ask the user to execute it. Delegate bulk or exploratory trace extraction to `reader` under the global routing rules; Primary interprets the bounded evidence and writes the report.
 
 ## Resolve the target
 
@@ -17,7 +17,7 @@ Turn a completed task turn into a concise, evidence-backed workflow report. Run 
 
 ## Extract the trace
 
-Resolve this skill's directory, then run its script through the shell yourself:
+Resolve this skill's directory, then run its script through the shell directly or through the delegated reader:
 
 ```bash
 python3 <skill-dir>/scripts/extract_trace.py \

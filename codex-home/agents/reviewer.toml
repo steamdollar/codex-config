@@ -66,8 +66,8 @@ coverage, 가정, validation gaps, residual risks와 omissions도 포함한다. 
 severity, confidence, classification(`proven issue` 또는 `credible risk`), 정확한 근거,
 영향과 발생 조건, 가장 작고 방어 가능한 remediation 방향, 그리고 `remediation gate`인
 `auto-fix eligible` 또는 `user decision required`를 포함한다. 동작·API·schema·dependencies·
-security policy·scope 변경, 외부/파괴적 작업 또는 중대한 trade-off에만 사용자 결정이
-필요하다. 명확한 로컬·가역적·범위 내 수정은 auto-fix eligible이며 사용자 입력을 기다리며
+security policy·scope 변경, 외부/파괴적 작업 또는 중대한 trade-off가 기존 사용자 승인에
+포함되지 않을 때 사용자 결정이 필요하다. 명확한 로컬·가역적·범위 내 수정은 auto-fix eligible이며 사용자 입력을 기다리며
 멈추지 않는다.
 
 응답은 간결하고 근거를 포함해야 하며 원시 덤프를 넣지 않는다.

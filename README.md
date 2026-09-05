@@ -8,7 +8,7 @@ symlinks; managed skills and runtime state stay local.
 
 - Root guidance: `AGENTS.md`
 - Shared machine configuration: `config.shared.toml`; machine-local `config.toml`
-- Lifecycle hook: `hooks.json`, `hooks/context-budget.py`
+- Lifecycle hooks: `hooks.json`, `hooks/context-budget.py`, `hooks/notify.py`, `hooks/remote-notify.py`
 - Custom-agent role bindings: relative `config_file` entries for `reader.toml`, `executor.toml`, `researcher.toml`, `reviewer.toml`
 - Custom rule: `default.rules`
 - Seven user-authored skills listed in `manifest.tsv`
@@ -20,6 +20,13 @@ symlink source, and is rebuilt from the shared file while preserving its parsed
 hook trust decisions automatically. Other machine-local keys are overwritten
 by synchronization; malformed trust state makes synchronization fail before
 the local file is changed.
+
+The primary default is GPT-6 Astra with `high` reasoning and the existing
+service tier. Subagents retain the cheaper workload-specific bindings below;
+this is not an all-Astra configuration. Astra consumes more of the shared
+usage allowance than Sol, with actual usage depending on the task and context.
+See [official model guidance](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra)
+and [usage limits](https://learn.chatgpt.com/docs/pricing).
 
 Project trust is machine-local, for example:
 
@@ -53,8 +60,8 @@ to Terra, and reviewer binds to Sol.
 Runtime identity comes from each TOML `name`. The live `config.toml` symlink
 uses one portable `agent-roles` directory symlink instead of individual
 agent-file symlinks, which current Codex role loading rejects. `reviewer` is
-automatically routed for explicit code, design, or instruction/policy/config
-review. Role contracts live in `agents/*.toml` and are therefore stable when a
+routed for reviews spanning multiple boundaries or benefiting from independent
+analysis; small document/config reviews stay with Primary. Role contracts live in `agents/*.toml` and are therefore stable when a
 model binding changes. Restart or reload the local Codex client (desktop/CLI/IDE;
 for example, reload the VS Code window) after changing this
 configuration, then start a new session so
@@ -62,6 +69,13 @@ configuration, then start a new session so
 role selection. Explicit review analysis is defined by
 `reviewer.toml` as a single-pass, risk-gated route with bounded evidence and no
 recursive reviewer/executor loop.
+
+Global guidance preserves the user's scope and prior authorization, delegates
+bounded evidence gathering and implementation, and stops verification once the
+required checks pass. Skills supply task-specific defaults; they do not override
+an explicit request for direct code links, a complete answer, or already authorized
+work. Runtime tool metadata establishes exposed role/model bindings; TOML and a
+model's self-report alone do not prove which model actually ran.
 
 ## Quick setup on another machine
 
@@ -142,7 +156,11 @@ is refreshed.
 
 The `UserPromptSubmit` hook reads the newest recorded
 `last_token_usage.input_tokens` from the session transcript. It warns once at
-60% of the model context window without blocking the turn.
+60% of the model context window without blocking the turn. This is the last
+recorded input size, not a prediction of the next turn's total context.
+It also scans backward for the latest completed turn and reports call counts,
+large output, duplicate commands, and truncation as diagnostic signals. These
+signals do not establish waste or require stopping an authorized task.
 
 Override the threshold for a launched Codex session when an absolute limit is
 preferred:
@@ -154,6 +172,23 @@ codex
 
 One-shot markers are disposable runtime files outside the managed manifest.
 
+## Completion notifications
+
+`Stop` runs the local desktop notifier and the optional remote notifier directly
+from managed paths under `hooks/`. The remote hook sends only when a token is
+available in `CODEX_REMOTE_NOTIFY_TOKEN` or the unmanaged `$CODEX_HOME/notify-token`.
+It sends hostname and project basename with a completion notice; no transcript
+is included. `CODEX_REMOTE_NOTIFY_URL` overrides the existing private-network
+default. That default uses HTTP and relies on the trusted network transport;
+use HTTPS for endpoints outside that protected network. An empty URL disables
+remote delivery. Tests mock delivery and never send live notifications.
+
+The installer now manages `hooks/remote-notify.py` with the same exact ownership,
+drift refusal, backup and rollback rules as other files. Changing its hook command
+requires reviewing the new definition in `/hooks`; setup does not grant trust.
+For backups made before a manifest change, use the matching repository revision
+when rolling back; the installer rejects a mismatched backup manifest.
+
 ## Tests
 
 Run the isolated installer integration tests against temporary Codex homes:
@@ -163,7 +198,8 @@ python3 tests/context-budget-hook-test.py
 bash tests/codex-config-test.sh
 ```
 
-The tests cover threshold and one-shot behavior, dry-run/apply/verify/uninstall,
+The tests cover threshold and one-shot behavior, bounded transcript reads,
+notification wiring, dry-run/apply/verify/uninstall,
 incremental and legacy backup restoration, and rollback after an injected link
 failure.
 

@@ -73,6 +73,6 @@ Write in the user's language while preserving code identifiers and the reviewer'
 
 - Do not summarize the whole PR; use the general GitHub workflow for that.
 - Do not perform a fresh code review or report unrelated findings.
-- Do not implement feedback; use `github:gh-address-comments` when fixes are requested.
+- This report does not itself authorize implementing feedback. If the user also requests fixes, continue within that authorization using the repository's implementation workflow and available GitHub tools; do not require a separately named skill to exist.
 - Do not reply, resolve threads, submit reviews, or otherwise write to GitHub without a separate explicit request.
 - Do not create a local report file unless export is explicitly requested.
