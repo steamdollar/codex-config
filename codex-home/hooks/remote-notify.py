@@ -9,21 +9,20 @@ import urllib.request
 from pathlib import Path
 
 
-DEFAULT_NOTIFY_URL = "http://100.106.135.67:18080/notify"
+def codex_home() -> Path:
+    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 
 
-def read_token() -> str | None:
-    token = os.environ.get("CODEX_REMOTE_NOTIFY_TOKEN", "").strip()
-    if token:
-        return token
+def read_local_value(env_name: str, filename: str) -> str | None:
+    value = os.environ.get(env_name, "").strip()
+    if value:
+        return value
 
-    codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-    token_file = codex_home / "notify-token"
     try:
-        token = token_file.read_text(encoding="utf-8").strip()
+        value = (codex_home() / filename).read_text(encoding="utf-8").strip()
     except OSError:
         return None
-    return token or None
+    return value or None
 
 
 def project_name(hook_input: object) -> str | None:
@@ -42,12 +41,9 @@ def main() -> int:
     except (UnicodeDecodeError, json.JSONDecodeError, TypeError):
         hook_input = {}
 
-    token = read_token()
-    if not token:
-        return 0
-
-    url = os.environ.get("CODEX_REMOTE_NOTIFY_URL", DEFAULT_NOTIFY_URL).strip()
-    if not url:
+    token = read_local_value("CODEX_REMOTE_NOTIFY_TOKEN", "notify-token")
+    url = read_local_value("CODEX_REMOTE_NOTIFY_URL", "notify-url")
+    if not token or not url:
         return 0
 
     source = platform.node() or os.environ.get("HOSTNAME") or "unknown"
