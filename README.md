@@ -1,8 +1,41 @@
 # Portable Codex Config
 
-Private source of truth for user-authored Codex guidance, custom agents,
-rules, and custom skills. Managed live entries under `$CODEX_HOME` are
-symlinks; managed skills and runtime state stay local.
+A reproducible, opinionated Codex setup for agent-assisted software development.
+This repository versions the workflow around the model—not just prompts: task
+routing, custom agent roles, context management, verification, hooks, rollback,
+and machine setup are kept inspectable and portable.
+
+The goal is bounded autonomy rather than maximum autonomy. The primary agent
+owns scope, decisions, and final acceptance; specialized agents receive narrow
+read, research, review, or execution contracts and return evidence for review.
+
+## What this repository demonstrates
+
+- **Bounded multi-agent delegation** — explicit `reader`, `researcher`, `reviewer`, and `executor` roles with depth-1 delegation and constrained ownership.
+- **Context management** — bulk-output isolation, context-budget warnings, and a `coldstart` skill for compact session handoffs.
+- **Verification discipline** — targeted checks, risk-gated review, and shared local/remote validation instead of repeated broad test runs.
+- **Portable developer tooling** — one-command setup, machine-local trust preservation, drift detection, backup, verification, and rollback.
+- **Workflow customization** — user-authored skills and completion hooks that turn recurring development habits into versioned tooling.
+
+This is my working configuration, not a generic recommended default. The
+interesting part is the set of trade-offs and guardrails; anyone reusing it
+should review those choices for their own environment.
+
+## Safety model
+
+`config.shared.toml` deliberately uses broad local tool permissions
+(`:danger-full-access` with `approval_policy = "never"`) to remove repetitive
+approval friction during trusted local development. Safety is therefore enforced
+at the workflow boundary rather than by asking for confirmation on every tool
+call: destructive or external-state changes, DB/system writes, credential
+handling, scope expansion, and other material-risk operations are explicitly
+gated by the repository guidance.
+
+Credentials, sessions, memories, logs, machine-local project/hook trust state,
+and generated runtime databases are not versioned. The installer also refuses
+unsafe manifest targets and foreign symlinks. Broad permissions are a deliberate
+personal trade-off, not a recommendation to run unreviewed agents with equivalent
+access.
 
 ## Managed scope
 
@@ -79,8 +112,8 @@ model's self-report alone do not prove which model actually ran.
 
 ## Quick setup on another machine
 
-Clone the private repository under the target Codex home and run the root
-setup entrypoint:
+Clone the repository under the target Codex home and run the root setup
+entrypoint:
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}"
