@@ -12,6 +12,7 @@ read, research, review, or execution contracts and return evidence for review.
 ## What this repository demonstrates
 
 - **Bounded multi-agent delegation** — explicit `reader`, `researcher`, `reviewer`, and `executor` roles with depth-1 delegation and constrained ownership.
+- **AGY external-worker lane** — bounded ask, research, and review requests can use an optional Gemini-family second opinion without replacing native Codex roles.
 - **Context management** — bulk-output isolation, context-budget warnings, and a `coldstart` skill for compact session handoffs.
 - **Verification discipline** — targeted checks, risk-gated review, and shared local/remote validation instead of repeated broad test runs.
 - **Portable developer tooling** — one-command setup, machine-local trust preservation, drift detection, backup, verification, and rollback.
@@ -44,7 +45,7 @@ access.
 - Lifecycle hooks: `hooks.json`, `hooks/context-budget.py`, `hooks/notify.py`, `hooks/remote-notify.py`
 - Custom-agent role bindings: relative `config_file` entries for `reader.toml`, `executor.toml`, `researcher.toml`, `reviewer.toml`
 - Custom rule: `default.rules`
-- Seven user-authored skills listed in `manifest.tsv`
+- Eight user-authored skills listed in `manifest.tsv`
 
 `config.shared.toml` contains portable settings such as the selected model,
 plugins, and service defaults. `config.toml` is ignored, remains the manifest
@@ -109,6 +110,35 @@ required checks pass. Skills supply task-specific defaults; they do not override
 an explicit request for direct code links, a complete answer, or already authorized
 work. Runtime tool metadata establishes exposed role/model bindings; TOML and a
 model's self-report alone do not prove which model actually ran.
+
+`agy-worker` is an optional external-worker adapter for bounded `ask`,
+`research`, and independent code/plan/design `review`; it does not replace the
+native `researcher` or `reviewer` routes. The adapter expects `agy@agy-staff`
+runtime version `0.5.1`, discovers its exact cache path from `codex plugin list`,
+and passes the companion's stdio and exit status through. The vendor plugin is
+kept disabled so its `$agy:*` skills are not implicit routing candidates; only
+the installed companion is used. For a fresh install, run:
+
+```bash
+codex plugin marketplace add https://github.com/keli-wen/agy-staff.git
+codex plugin add agy@agy-staff
+./setup.sh
+```
+
+For an existing install, refresh only when needed, then restore the managed
+disabled state:
+
+```bash
+codex plugin marketplace upgrade agy-staff
+codex plugin add agy@agy-staff
+./setup.sh
+```
+
+Restart or reload Codex after installing or upgrading the skill/plugin. The
+companion lifecycle requires unsandboxed/full access or escalation; this
+adapter has no sandbox workaround and never runs `setup --restricted`. AGY is
+an external worker without native attestation, model metadata, agent UI, or
+ThreadId; Primary still checks authoritative specs and synthesizes evidence.
 
 ## Quick setup on another machine
 

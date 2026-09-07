@@ -31,6 +31,13 @@ enabled = true
 [plugins."ponytail@ponytail"]
 enabled = true
 
+[plugins."agy@agy-staff"]
+enabled = false
+
 [marketplaces.ponytail]
 source_type = "git"
 source = "https://github.com/DietrichGebert/ponytail.git"
+
+[marketplaces.agy-staff]
+source_type = "git"
+source = "https://github.com/keli-wen/agy-staff.git"

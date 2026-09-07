@@ -1,0 +1,6 @@
+policy:
+  allow_implicit_invocation: true
+interface:
+  display_name: "AGY Worker"
+  short_description: "Route bounded second opinions to AGY"
+  default_prompt: "Use $agy-worker for a fast independent AGY second opinion on a bounded question, research task, or code, plan, or design review."

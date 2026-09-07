@@ -41,6 +41,13 @@ expected_config = {
 for key, value in expected_config.items():
     if config.get(key) != value:
         raise SystemExit(f"config.shared.toml {key}: expected {value!r}, got {config.get(key)!r}")
+if config.get("plugins", {}).get("agy@agy-staff", {}).get("enabled") is not False:
+    raise SystemExit("config.shared.toml must keep vendor agy@agy-staff skills disabled")
+if config.get("marketplaces", {}).get("agy-staff") != {
+    "source_type": "git",
+    "source": "https://github.com/keli-wen/agy-staff.git",
+}:
+    raise SystemExit("config.shared.toml agy-staff marketplace is incorrect")
 
 expected_bindings = {
     "reader": "agent-roles/reader.toml",
@@ -111,11 +118,58 @@ if "codex-home/skills/agent-workflow-audit\tskills/agent-workflow-audit\texact" 
     raise SystemExit("manifest does not install agent-workflow-audit")
 if "codex-home/skills/agent-efficiency-retro\tskills/agent-efficiency-retro\texact" not in manifest:
     raise SystemExit("manifest does not install agent-efficiency-retro")
+if "codex-home/skills/agy-worker\tskills/agy-worker\texact" not in manifest:
+    raise SystemExit("manifest does not install agy-worker")
 if "luna-reader" in manifest or "luna-reader" in (root / "README.md").read_text():
     raise SystemExit("deprecated luna-reader agent reference is still managed or documented")
 
 agents = (root / "codex-home" / "AGENTS.md").read_text()
 readme = (root / "README.md").read_text()
+skill = (root / "codex-home" / "skills" / "agy-worker" / "SKILL.md").read_text()
+metadata = (root / "codex-home" / "skills" / "agy-worker" / "agents" / "openai.yaml").read_text()
+adapter = root / "codex-home" / "skills" / "agy-worker" / "scripts" / "agy-worker.mjs"
+if not adapter.is_file():
+    raise SystemExit("agy-worker adapter is missing")
+for phrase in (
+    "fast, bounded AGY external-worker second opinions",
+    "authoritative spec",
+    "security, data, migration, financial",
+    "ask` → AGY `ask",
+    "research` for context-light",
+    "code, plan, or design review",
+    "implement` is allowed only when the user explicitly asks",
+    "setup --restricted",
+    "exact wait command",
+    "native attestation",
+):
+    if phrase not in skill:
+        raise SystemExit(f"agy-worker skill contract missing: {phrase}")
+for phrase in (
+    "allow_implicit_invocation: true",
+    "display_name: \"AGY Worker\"",
+    "short_description:",
+    "default_prompt: \"Use $agy-worker",
+):
+    if phrase not in metadata:
+        raise SystemExit(f"agy-worker metadata missing: {phrase}")
+for phrase in (
+    "agy-worker",
+    "optional external lane",
+    "native `researcher`와 `reviewer`를 대체하지 않으며",
+    "authoritative spec은 Primary가 직접 확인",
+    "sole reviewer",
+):
+    if phrase not in agents:
+        raise SystemExit(f"AGENTS.md AGY lane contract missing: {phrase}")
+for phrase in (
+    "Eight user-authored skills",
+    "runtime version `0.5.1`",
+    "codex plugin marketplace upgrade agy-staff",
+    "unsandboxed/full access",
+    "setup --restricted",
+):
+    if phrase not in readme:
+        raise SystemExit(f"README AGY documentation missing: {phrase}")
 if "advisor.toml" in readme or "`advisor`" in readme:
     raise SystemExit("retired advisor role is still documented")
 if "REVIEW.md" in agents or "REVIEW.md" in readme:
@@ -127,6 +181,35 @@ if "SUB_AGENTS.md" in manifest or "SUB_AGENTS.md" in readme:
 if "terra-executor" in readme or "terra-executor" in agents:
     raise SystemExit("retired terra-executor is still documented")
 PY
+}
+
+test_agy_worker_adapter() {
+  local home="$tmp_root/agy-worker-home"
+  local fake_bin="$tmp_root/agy-worker-bin"
+  local adapter="$repo_root/codex-home/skills/agy-worker/scripts/agy-worker.mjs"
+  local listed_version="0.5.1"
+  local current_companion="$home/plugins/cache/agy-staff/agy/$listed_version/companion/agy-companion.mjs"
+  local stale_companion="$home/plugins/cache/agy-staff/agy/0.5.0/companion/agy-companion.mjs"
+  local output="$tmp_root/agy-worker-output"
+  local error_output="$tmp_root/agy-worker-error"
+
+  mkdir -p -- "$fake_bin" "$(dirname -- "$current_companion")" "$(dirname -- "$stale_companion")"
+  printf '%s\n' '#!/usr/bin/env bash' \
+    '[[ "$*" == "plugin list --marketplace agy-staff --json" ]] || exit 64' \
+    'printf %s "{\"installed\":[{\"pluginId\":\"agy@agy-staff\",\"name\":\"agy\",\"marketplaceName\":\"agy-staff\",\"version\":\"0.5.1\",\"installed\":true,\"enabled\":false}],\"available\":[]}"' \
+    > "$fake_bin/codex"
+  chmod +x "$fake_bin/codex"
+  printf '%s\n' 'process.stdout.write(JSON.stringify(process.argv.slice(2)));' > "$current_companion"
+  printf '%s\n' 'process.stdout.write("stale sibling selected");' > "$stale_companion"
+
+  CODEX_HOME="$home" PATH="$fake_bin:$PATH" node "$adapter" ask --prompt 'hello world' > "$output"
+  [[ "$(<"$output")" == '["ask","--prompt","hello world"]' ]] || fail "agy-worker did not pass original argv to the listed version companion"
+
+  rm -- "$current_companion"
+  if CODEX_HOME="$home" PATH="$fake_bin:$PATH" node "$adapter" ask > /dev/null 2> "$error_output"; then
+    fail "agy-worker unexpectedly succeeded without its companion"
+  fi
+  grep -Fq 'companion file is missing' "$error_output" || fail "agy-worker missing companion failure was not actionable"
 }
 
 new_home() {
@@ -532,7 +615,15 @@ test_rollback_after_link_failure() {
   [[ -z "$(find "$home" -name '*.codex-config.*' -print -quit)" ]] || fail "temporary link remained after rollback"
 }
 
+if [[ "${CODEX_CONFIG_TARGETED_TEST:-}" == "agy-worker" ]]; then
+  test_role_configuration
+  test_agy_worker_adapter
+  printf '%s\n' 'PASS: agy-worker targeted test'
+  exit 0
+fi
+
 test_role_configuration
+test_agy_worker_adapter
 
 test_shared_config_has_no_machine_project_paths() {
   ! rg -q '^\[projects\.' "$repo_root/config.shared.toml" || fail "shared config contains machine-local project trust"

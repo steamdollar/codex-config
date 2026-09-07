@@ -36,10 +36,18 @@
 - 병렬 write가 끝나면 Primary가 combined diff와 필요한 integration coverage를 확인한다. Sub-agent가 성공한 동일 verification은 결과가 stale하거나 잘못됐다는 구체적 근거 없이 Primary가 재실행하지 않는다.
 - scope와 risk가 유지되는 bounded follow-up에는 동일한 non-review agent를 재사용한다.
 
+# 외부 worker lane
+
+- 독립적인 빠른 second opinion, bounded research, 또는 독립적인 code/plan/design review가 실질적으로 유익할 때 `agy-worker`를 optional external lane으로 자동 라우팅할 수 있다. native `researcher`와 `reviewer`를 대체하지 않으며, vendor `$agy:*` skill을 orchestration primitive로 사용하지 않고 generic staffer를 자동 라우팅하지 않는다.
+- authoritative spec은 Primary가 직접 확인하고, security·data·migration·financial 및 기타 high-risk 판단에는 AGY를 sole reviewer로 사용하지 않는다. prompt는 질문·허용 범위·필요한 근거만 포함하고 credential, secret, 불필요한 파일 내용은 보내지 않는다.
+- AGY의 ask/research/review 결과는 Primary evidence로 반환하되 Primary가 decision-critical evidence를 spot-check하고 synthesis한다. 최종 사용자에게 verbatim pass-through하지 않으며, external failure는 명시적으로 보고한다.
+- depth-1 lane으로만 사용하고 chaining하지 않는다. external worker에는 native attestation/model metadata, agent UI, ThreadId가 없으므로 이를 가정하지 않는다. 명시적 AGY implementation 외에는 implementation을 자동 라우팅하지 않는다.
+
 # Primary 소통·상태 계약
 
 - 사용자는 Primary와의 대화만으로 전체 작업의 진행 상황을 이해할 수 있어야 한다.
 - Tool 또는 장시간 작업 중 상태 업데이트에는 해당되는 항목만 포함한다: 현재 phase, 완료, 진행 중, 다음 조치, blocker/deviation, 남은 작업. 빈 항목을 형식적으로 채우지 않는다.
+- Atomic 작업 위임 시 초기 탐색 직후의 checkpoint를 지정하고 agent는 변경 위치·선택한 접근 또는 구체적 blocker를 먼저 보고한다. Primary는 근거 없이 wait를 반복하지 않고 최신 diff·blocker·실행 중 command 상태로 진척을 확인하며, 탐색 확대·반복 재설계·검증 반복으로 범위를 이탈하면 개입해 재조정하거나 중단한다. 정상 진행 중인 장시간 검증은 경과 시간만으로 중단하지 않는다.
 - Sub-agent 결과는 raw output을 전달하지 말고 Primary가 검증하고 종합해 보고한다.
 - 최종 답변은 이전 commentary가 접혀 있어도 독립적으로 이해되도록 outcome, verification/evidence, unresolved items와 필요한 경우 next action을 포함한다.
 
@@ -55,6 +63,7 @@
 # Context 관리
 
 - Primary는 작고 직접적인 읽기·실행과 알려진 단일 소스 확인을 직접 수행한다. bulk/exploratory/multi-stream 읽기, 다중 소스 조사 또는 위임의 context·risk·wall-clock 이점이 분명한 작업만 agent에 위임한다. agent는 `fork_turns="none"`으로 생성하고 질문, 범위, 제외 대상, 근거 형식, 종료 조건을 제한해서 전달한다.
+- 담당 파일과 acceptance criteria가 주어진 bounded agent는 해당 파일과 필요한 직접 의존·호출 지점만 확인한다. 구체적 blocker가 있을 때만 이유와 추가 범위를 보고하고 탐색을 넓힌다. 검색·파일·명령 출력은 필요한 구간과 양으로 제한하며, 출력이 잘리면 전체 재출력 대신 범위를 좁힌다.
 - `bulk`/`exploratory`/`multi-stream` log 읽기는 반드시 `reader`에 위임한다. Primary는 간결한 diagnosis와 evidence 위치를 받고, 결정에 필요한 bounded snippet만 직접 spot-check하며 raw bulk log output은 context에 들이지 않는다.
 - Agent는 결론과 뒷받침하는 근거만 간결하게 반환한다. Primary는 결정에 중요한 근거만 점검하고 변경되지 않은 범위를 다시 읽지 않는다.
 - 검색은 경로·심볼·기간부터 제한하고, 독립적인 읽기는 묶되 합산 출력 예산을 정한다. 출력이 잘리면 필터나 구간을 좁힌다. hook의 호출 수·출력량 경고는 진단 신호이며 작업 실패나 자동 중단 기준이 아니다.
@@ -62,7 +71,7 @@
 
 # 검증 라우팅
 
-- 기본 검증은 변경한 동작과 직접 영향받는 경계를 다루는 가장 좁은 targeted final batch 한 번이다. Targeted test가 compile과 동작 경계를 함께 확인하면 별도 build, typecheck, lint를 추가하지 않는다.
+- 기본 검증은 변경한 동작과 직접 영향받는 경계를 다루는 가장 좁은 targeted final batch 한 번이다. 필요한 구현·test 수정을 정리한 뒤 실행하며, 검증 이후에는 실패나 요구사항 미충족의 구체적 근거가 없는 정리·재설계를 추가해 재실행을 만들지 않는다. Targeted test가 compile과 동작 경계를 함께 확인하면 별도 build, typecheck, lint를 추가하지 않는다.
 - test code 작성·수정과 Gradle·workspace build·full suite처럼 오래 걸리거나 출력이 큰 검증은 `executor`에 위임한다. Primary는 command, 대상, acceptance criteria와 종료 조건을 정하고 요약된 결과와 decision-critical evidence만 검수한다. Primary가 직접 실행할 수 있는 검증은 `git diff --check`, 작은 parser check처럼 빠르고 출력이 제한된 확인으로 한정한다.
 - full test·full build는 사용자가 명시적으로 요청하거나 authoritative repository acceptance criteria가 요구할 때만 실행한다. 이 요청은 기본적으로 broad run 한 번만 허가하며 반복 실행을 자동으로 허가하지 않는다.
 - 자신의 변경으로 검증이 실패하면 원인을 수정하고 실패한 target을 재실행한다. 새 수정이나 근거가 있는 재시도만 하며 동일 실패를 맹목적으로 반복하지 않는다. 전체 suite green이 acceptance criteria라면 targeted 실패를 해결한 뒤 final broad run을 한 번 더 실행한다.
