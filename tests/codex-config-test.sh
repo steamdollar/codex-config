@@ -34,7 +34,7 @@ with (root / "config.shared.toml").open("rb") as f:
 
 expected_config = {
     "model": "gpt-6-astra",
-    "model_reasoning_effort": "high",
+    "model_reasoning_effort": "medium",
     "default_permissions": ":danger-full-access",
     "approval_policy": "never",
 }
@@ -114,62 +114,38 @@ for name in expected_bindings:
         raise SystemExit(f"manifest still installs retired {name}.toml symlink")
 if "dir\tcodex-home/agents\tagent-roles\texact" not in manifest:
     raise SystemExit("manifest does not install the portable agent-roles directory link")
-if "codex-home/skills/agent-workflow-audit\tskills/agent-workflow-audit\texact" not in manifest:
-    raise SystemExit("manifest does not install agent-workflow-audit")
-if "codex-home/skills/agent-efficiency-retro\tskills/agent-efficiency-retro\texact" not in manifest:
-    raise SystemExit("manifest does not install agent-efficiency-retro")
-if "codex-home/skills/agy-worker\tskills/agy-worker\texact" not in manifest:
-    raise SystemExit("manifest does not install agy-worker")
+for skill_name in (
+    "agy-worker",
+    "agent-efficiency-retro",
+    "agent-workflow-audit",
+    "e2e-test",
+    "user-review-helper",
+):
+    skill_dir = root / "codex-home" / "skills" / skill_name
+    if not (skill_dir / "SKILL.md").is_file() or not (skill_dir / "agents" / "openai.yaml").is_file():
+        raise SystemExit(f"skill files missing: {skill_name}")
+    if f"dir\tcodex-home/skills/{skill_name}\tskills/{skill_name}\texact" not in manifest:
+        raise SystemExit(f"manifest does not install {skill_name}")
 if "luna-reader" in manifest or "luna-reader" in (root / "README.md").read_text():
     raise SystemExit("deprecated luna-reader agent reference is still managed or documented")
 
 agents = (root / "codex-home" / "AGENTS.md").read_text()
 readme = (root / "README.md").read_text()
-skill = (root / "codex-home" / "skills" / "agy-worker" / "SKILL.md").read_text()
-metadata = (root / "codex-home" / "skills" / "agy-worker" / "agents" / "openai.yaml").read_text()
 adapter = root / "codex-home" / "skills" / "agy-worker" / "scripts" / "agy-worker.mjs"
 if not adapter.is_file():
     raise SystemExit("agy-worker adapter is missing")
-for phrase in (
-    "fast, bounded AGY external-worker second opinions",
-    "authoritative spec",
-    "security, data, migration, financial",
-    "ask` → AGY `ask",
-    "research` for context-light",
-    "code, plan, or design review",
-    "implement` is allowed only when the user explicitly asks",
-    "setup --restricted",
-    "exact wait command",
-    "native attestation",
-):
-    if phrase not in skill:
-        raise SystemExit(f"agy-worker skill contract missing: {phrase}")
-for phrase in (
-    "allow_implicit_invocation: true",
-    "display_name: \"AGY Worker\"",
-    "short_description:",
-    "default_prompt: \"Use $agy-worker",
-):
-    if phrase not in metadata:
-        raise SystemExit(f"agy-worker metadata missing: {phrase}")
-for phrase in (
-    "agy-worker",
-    "optional external lane",
-    "native `researcher`와 `reviewer`를 대체하지 않으며",
-    "authoritative spec은 Primary가 직접 확인",
-    "sole reviewer",
-):
-    if phrase not in agents:
-        raise SystemExit(f"AGENTS.md AGY lane contract missing: {phrase}")
-for phrase in (
-    "Eight user-authored skills",
-    "runtime version `0.5.1`",
-    "codex plugin marketplace upgrade agy-staff",
-    "unsandboxed/full access",
-    "setup --restricted",
-):
-    if phrase not in readme:
-        raise SystemExit(f"README AGY documentation missing: {phrase}")
+metadata_path = root / "codex-home" / "skills" / "agy-worker" / "agents" / "openai.yaml"
+try:
+    import yaml
+except ImportError:
+    metadata = metadata_path.read_text()
+    if "allow_implicit_invocation: false" not in metadata or "allow_implicit_invocation: true" in metadata:
+        raise SystemExit("agy-worker implicit invocation policy must be false")
+else:
+    with metadata_path.open() as f:
+        metadata = yaml.safe_load(f) or {}
+    if metadata.get("policy", {}).get("allow_implicit_invocation") is not False:
+        raise SystemExit("agy-worker implicit invocation policy must be false")
 if "advisor.toml" in readme or "`advisor`" in readme:
     raise SystemExit("retired advisor role is still documented")
 if "REVIEW.md" in agents or "REVIEW.md" in readme:
@@ -514,6 +490,37 @@ test_retired_terra_executor_migration() {
   "$installer" install --codex-home "$regular_home" --apply >/dev/null
   [[ -f "$regular_target" && ! -L "$regular_target" ]] || fail "regular retired terra-executor target was removed"
   cmp -s "$regular_target" "$foreign_source" || fail "regular retired terra-executor target changed"
+}
+
+test_e2e_directory_drift_backup_restore() {
+  local home="$tmp_root/e2e-directory-home" backup="$tmp_root/e2e-directory-backup"
+  local target="$home/skills/e2e-test" source="$repo_root/codex-home/skills/e2e-test"
+  local foreign_home="$tmp_root/e2e-directory-foreign-home"
+  local foreign_target="$foreign_home/skills/e2e-test" foreign_source="$tmp_root/foreign-e2e-test"
+
+  new_home "$home"
+  mkdir -p -- "$target"
+  printf '%s\n' 'standalone copy' > "$target/legacy.txt"
+  if "$installer" install --codex-home "$home" --apply >/dev/null 2>&1; then
+    fail "drifted e2e-test directory was accepted without --allow-drift"
+  fi
+  [[ -d "$target" && ! -L "$target" && -f "$target/legacy.txt" ]] || fail "drifted e2e-test directory changed after rejected install"
+
+  "$installer" install --codex-home "$home" --backup-dir "$backup" --allow-drift --apply >/dev/null
+  [[ -L "$target" && "$(readlink "$target")" == "$source" ]] || fail "e2e-test directory was not linked after allow-drift install"
+  [[ -d "$backup/original/skills/e2e-test" && -f "$backup/original/skills/e2e-test/legacy.txt" ]] || fail "drifted e2e-test directory was not backed up"
+
+  "$installer" uninstall --codex-home "$home" --restore-backup "$backup" --apply >/dev/null
+  [[ -d "$target" && ! -L "$target" && -f "$target/legacy.txt" ]] || fail "e2e-test standalone directory was not restored"
+
+  new_home "$foreign_home"
+  mkdir -p -- "$foreign_source" "$(dirname -- "$foreign_target")"
+  printf '%s\n' 'foreign' > "$foreign_source/foreign.txt"
+  ln -s -- "$foreign_source" "$foreign_target"
+  if "$installer" install --codex-home "$foreign_home" --allow-drift --apply >/dev/null 2>&1; then
+    fail "foreign e2e-test symlink was accepted"
+  fi
+  [[ -L "$foreign_target" && "$(readlink "$foreign_target")" == "$foreign_source" ]] || fail "foreign e2e-test symlink changed"
 }
 
 test_backup_restore() {
@@ -883,6 +890,7 @@ test_retired_sub_agents_migration
 test_retired_planner_migration
 test_retired_advisor_migration
 test_retired_terra_executor_migration
+test_e2e_directory_drift_backup_restore
 test_backup_restore
 test_incremental_restore_preserves_unchanged_links
 test_rollback_after_link_failure

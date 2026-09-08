@@ -30,7 +30,9 @@ approval friction during trusted local development. Safety is therefore enforced
 at the workflow boundary rather than by asking for confirmation on every tool
 call: destructive or external-state changes, DB/system writes, credential
 handling, scope expansion, and other material-risk operations are explicitly
-gated by the repository guidance.
+gated by the repository guidance. These are behavioral instructions, not an OS
+sandbox. A child role's read-only declaration does not guarantee isolation when
+parent runtime permission overrides are reapplied.
 
 Credentials, sessions, memories, logs, machine-local project/hook trust state,
 and generated runtime databases are not versioned. The installer also refuses
@@ -45,7 +47,7 @@ access.
 - Lifecycle hooks: `hooks.json`, `hooks/context-budget.py`, `hooks/notify.py`, `hooks/remote-notify.py`
 - Custom-agent role bindings: relative `config_file` entries for `reader.toml`, `executor.toml`, `researcher.toml`, `reviewer.toml`
 - Custom rule: `default.rules`
-- Eight user-authored skills listed in `manifest.tsv`
+- User-authored skills listed in `manifest.tsv`
 
 `config.shared.toml` contains portable settings such as the selected model,
 plugins, and service defaults. `config.toml` is ignored, remains the manifest
@@ -55,12 +57,15 @@ hook trust decisions automatically. Other machine-local keys are overwritten
 by synchronization; malformed trust state makes synchronization fail before
 the local file is changed.
 
-The primary default is GPT-6 Astra with `high` reasoning and the existing
-service tier. Subagents retain the cheaper workload-specific bindings below;
-this is not an all-Astra configuration. Astra consumes more of the shared
-usage allowance than Sol, with actual usage depending on the task and context.
-See [official model guidance](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra)
-and [usage limits](https://learn.chatgpt.com/docs/pricing).
+The primary default is GPT-6 Astra with `medium` reasoning and the existing
+service tier. Use `codex -c 'model_reasoning_effort="low"'` for a well-scoped,
+routine CLI task; desktop/IDE users select the model and reasoning in the client.
+This is a user-selected starting point, not a verified equivalence to Sol high.
+Subagent model/effort bindings remain unchanged pending task-level evidence.
+Simple implementation and tests stay with Primary; delegate independent work
+when context, quality, or elapsed-time gains justify coordination and token cost.
+See the [Astra setup review](docs/astra-setup-review.md) for the assumptions,
+official sources, retained trade-offs, and a lightweight comparison procedure.
 
 Project trust is machine-local, for example:
 
@@ -111,9 +116,10 @@ an explicit request for direct code links, a complete answer, or already authori
 work. Runtime tool metadata establishes exposed role/model bindings; TOML and a
 model's self-report alone do not prove which model actually ran.
 
-`agy-worker` is an optional external-worker adapter for bounded `ask`,
+`agy-worker` is an explicit-only external-worker adapter for bounded `ask`,
 `research`, and independent code/plan/design `review`; it does not replace the
-native `researcher` or `reviewer` routes. The adapter expects `agy@agy-staff`
+native `researcher` or `reviewer` routes. Invoke it when requesting AGY or a separate
+model-family comparison; it is not selected for routine reviews. The adapter expects `agy@agy-staff`
 runtime version `0.5.1`, discovers its exact cache path from `codex plugin list`,
 and passes the companion's stdio and exit status through. The vendor plugin is
 kept disabled so its `$agy:*` skills are not implicit routing candidates; only
@@ -139,6 +145,22 @@ companion lifecycle requires unsandboxed/full access or escalation; this
 adapter has no sandbox workaround and never runs `setup --restricted`. AGY is
 an external worker without native attestation, model metadata, agent UI, or
 ThreadId; Primary still checks authoritative specs and synthesizes evidence.
+
+## Optional Ponytail session
+
+Ponytail is disabled by default to avoid imposing its output and test style on
+ordinary coding tasks. The global guidance retains reuse of existing patterns,
+standard libraries, and native platform features. Its installed plugin is preserved;
+opt into the vendor skills for a CLI session with:
+
+```bash
+codex -c 'plugins."ponytail@ponytail".enabled=true'
+```
+
+The managed `e2e-test` skill continues through already authorized phases and pauses
+only for required user interaction or new authorization. Its former standalone
+installation is adopted through the installer's existing drift backup path; preview
+and use `--allow-drift` only for that known directory when migrating.
 
 ## Quick setup on another machine
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "E2E Test"
+  short_description: "Phase-based full-stack E2E verification"
+  default_prompt: "Use $e2e-test to verify the completed feature end to end across UI, backend, agent, and data layers."

@@ -15,3 +15,4 @@ dir	codex-home/skills/coldstart	skills/coldstart	exact
 dir	codex-home/skills/gh-pr-comment-report	skills/gh-pr-comment-report	exact
 dir	codex-home/skills/query-review	skills/query-review	exact
 dir	codex-home/skills/user-review-helper	skills/user-review-helper	exact
+dir	codex-home/skills/e2e-test	skills/e2e-test	exact

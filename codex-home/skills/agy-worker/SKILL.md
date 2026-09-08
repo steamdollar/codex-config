@@ -1,6 +1,6 @@
 ---
 name: agy-worker
-description: Route fast, bounded AGY external-worker second opinions when an independent Gemini model-family view can improve an ask, bounded research, or independent code/plan/design review without consuming the Primary's Codex quota or context. Use only after the Primary confirms the authoritative spec directly; do not use AGY as the sole reviewer for security, data, migration, financial, or other high-risk decisions, and do not route implementation or generic staffer work automatically.
+description: Use AGY for a bounded second opinion when the user explicitly requests AGY or an independent model-family comparison. Not for routine research, review, or implementation delegation.
 ---
 
 # AGY Worker
@@ -13,7 +13,7 @@ resolves that version from `codex plugin list` and passes arguments through:
 node "${CODEX_HOME:-$HOME/.codex}/skills/agy-worker/scripts/agy-worker.mjs" <agy-command> [args...]
 ```
 
-Choose only these automatic routes:
+For an explicit AGY or model-family comparison request, choose:
 
 - `ask` → AGY `ask` for a fast, independent second opinion.
 - bounded research → AGY `research` for context-light evidence gathering.

@@ -1,5 +1,5 @@
 model = "gpt-6-astra"
-model_reasoning_effort = "high"
+model_reasoning_effort = "medium"
 personality = "pragmatic"
 service_tier = "default"
 default_permissions = ":danger-full-access"
@@ -29,7 +29,7 @@ enabled = true
 enabled = true
 
 [plugins."ponytail@ponytail"]
-enabled = true
+enabled = false
 
 [plugins."agy@agy-staff"]
 enabled = false
