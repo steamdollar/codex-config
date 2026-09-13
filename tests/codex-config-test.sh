@@ -635,8 +635,8 @@ test_role_configuration
 test_agy_worker_adapter
 
 test_shared_config_has_no_machine_project_paths() {
-  ! rg -q '^\[projects\.' "$repo_root/config.shared.toml" || fail "shared config contains machine-local project trust"
-  ! rg -q '^\[hooks\.state' "$repo_root/config.shared.toml" || fail "shared config contains machine-local hook trust"
+  ! grep -q '^\[projects\.' "$repo_root/config.shared.toml" || fail "shared config contains machine-local project trust"
+  ! grep -q '^\[hooks\.state' "$repo_root/config.shared.toml" || fail "shared config contains machine-local hook trust"
 }
 
 test_notify_hook_dialog_routing() {

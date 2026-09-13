@@ -4,7 +4,7 @@ set -Eeuo pipefail
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 cd -- "$repo_root"
 
-for command_name in python3 rg; do
+for command_name in python3 grep; do
   command -v "$command_name" >/dev/null || {
     printf 'ERROR: required command not found: %s\n' "$command_name" >&2
     exit 1
