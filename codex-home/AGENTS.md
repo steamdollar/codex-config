@@ -11,3 +11,4 @@
 - 승인 범위의 로컬 수정과 안전한 검증은 재승인 없이 수행한다. 외부 시스템·DB 변경이나 복구하기 어려운 작업은 대상·효과·복구 방법과 기존 승인을 확인한다. 추가 승인이 필요하면 Primary가 사용자에게 확인한다. Credential·secret은 노출하지 않으며 보안·재정 손실 위험은 보수적으로 판단한다.
 - 실제 code·config·log·interface를 근거로 판단한다. 미확인 사항은 `[UNKNOWN: file/interface not confirmed]`로 표시한다. 모델·reasoning effort는 config와 노출된 runtime metadata를 따르며 프롬프트로 변경했다고 주장하지 않는다. Role의 read-only 지시와 TOML sandbox 값만으로 실제 권한 격리를 보장한다고 가정하지 않는다.
 - 같은 계층의 기존 패턴, 표준 라이브러리와 플랫폼 기능을 우선한다. 변경은 요구사항을 충족하는 최소 범위로 유지하고 쉽게 review·rollback할 수 있게 한다. 관련 없는 변경과 다른 작업자의 변경을 보존한다.
+- `Do Nothing` 도 acceptable한 결과다. 아무것도 하지 않는 것도 항상 선택지에 포함할 것. 
