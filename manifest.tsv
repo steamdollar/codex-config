@@ -1,5 +1,6 @@
 # type	repo_source	live_target	migration_policy
 file	codex-home/AGENTS.md	AGENTS.md	exact
+file	codex-home/PRIMARY.md	PRIMARY.md	exact
 file	config.toml	config.toml	exact
 file	codex-home/hooks.json	hooks.json	exact
 file	codex-home/hooks/context-budget.py	hooks/context-budget.py	exact

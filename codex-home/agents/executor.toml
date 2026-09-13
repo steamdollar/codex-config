@@ -14,11 +14,11 @@ Primary가 위임한 승인된 원자적 구현 단계 하나만 수행한다. �
 deviation을 보고한다. 안전한 기본값이 없어서 public behavior, API/schema, dependency,
 security policy, scope 또는 외부 상태가 바뀌면 `needs_decision`을 보고하고 멈춘다.
 
-변경 동작에 coverage가 부족하면 가장 가까운 기존 패턴의 최소 targeted test를 추가한다. 저장소
-및 상위 AGENTS의 필수 checks를 따르고, 별도 요구가 없으면 변경 layer와 직접 영향 경계를
-검증하는 가장 좁은 final batch만 실행한다. full suite·full build는 위임 또는 저장소 기준이
-요구할 때만 실행한다. 성공 주장에는 command와 exit status, 실패에는 최소 failure evidence를
-포함한다.
+검증 담당·범위·시점은 프로젝트 지침과 위임을 따른다. 테스트 추가가 필요하면 기존 패턴으로
+가장 좁은 coverage만 보완한다. 실행은 맡겨진 최소 checks로 한정하며, Primary 최종 검증으로
+모으도록 지정된 checks는 실행하지 않는다. 생략한 검증과 이유를 보고한다. full suite·full build는
+자신에게 실행이 배정된 경우에만 수행한다. 성공 주장에는 command와 exit status, 실패에는
+최소 failure evidence를 포함한다.
 
 사용자에게 연락하거나 명시적으로 위임·허가되지 않은 외부 시스템을 변경하거나 child agent를 생성하거나 최종 결정을 내리거나
 범위를 넓히지 않는다. 결과는 다음만 포함한다: `status`(`complete`|`partial`|`needs_decision`|

@@ -33,8 +33,8 @@ with (root / "config.shared.toml").open("rb") as f:
     config = tomllib.load(f)
 
 expected_config = {
-    "model": "gpt-6-astra",
-    "model_reasoning_effort": "medium",
+    "model": "gpt-5.6-sol",
+    "model_reasoning_effort": "high",
     "default_permissions": ":danger-full-access",
     "approval_policy": "never",
 }
@@ -81,8 +81,8 @@ expected_roles = {
     },
     "reviewer.toml": {
         "name": "reviewer",
-        "model": "gpt-5.6-sol",
-        "model_reasoning_effort": "high",
+        "model": "gpt-6-astra",
+        "model_reasoning_effort": "xhigh",
         "sandbox_mode": "read-only",
     },
 }
@@ -114,6 +114,8 @@ for name in expected_bindings:
         raise SystemExit(f"manifest still installs retired {name}.toml symlink")
 if "dir\tcodex-home/agents\tagent-roles\texact" not in manifest:
     raise SystemExit("manifest does not install the portable agent-roles directory link")
+if "file\tcodex-home/PRIMARY.md\tPRIMARY.md\texact" not in manifest:
+    raise SystemExit("manifest does not install the Primary instructions link")
 for skill_name in (
     "agy-worker",
     "agent-efficiency-retro",

@@ -14,7 +14,7 @@ read, research, review, or execution contracts and return evidence for review.
 - **Bounded multi-agent delegation** — explicit `reader`, `researcher`, `reviewer`, and `executor` roles with depth-1 delegation and constrained ownership.
 - **AGY external-worker lane** — bounded ask, research, and review requests can use an optional Gemini-family second opinion without replacing native Codex roles.
 - **Context management** — bulk-output isolation, context-budget warnings, and a `coldstart` skill for compact session handoffs.
-- **Verification discipline** — targeted checks, risk-gated review, and shared local/remote validation instead of repeated broad test runs.
+- **Verification discipline** — targeted checks, explicitly requested independent review, and shared local/remote validation instead of repeated broad test runs.
 - **Portable developer tooling** — one-command setup, machine-local trust preservation, drift detection, backup, verification, and rollback.
 - **Workflow customization** — user-authored skills and completion hooks that turn recurring development habits into versioned tooling.
 
@@ -42,7 +42,8 @@ access.
 
 ## Managed scope
 
-- Root guidance: `AGENTS.md`
+- Shared agent guidance: `codex-home/AGENTS.md` → live `AGENTS.md`
+- Primary-only guidance: `codex-home/PRIMARY.md` → live `PRIMARY.md`
 - Shared machine configuration: `config.shared.toml`; machine-local `config.toml`
 - Lifecycle hooks: `hooks.json`, `hooks/context-budget.py`, `hooks/notify.py`, `hooks/remote-notify.py`
 - Custom-agent role bindings: relative `config_file` entries for `reader.toml`, `executor.toml`, `researcher.toml`, `reviewer.toml`
@@ -57,15 +58,11 @@ hook trust decisions automatically. Other machine-local keys are overwritten
 by synchronization; malformed trust state makes synchronization fail before
 the local file is changed.
 
-The primary default is GPT-6 Astra with `medium` reasoning and the existing
-service tier. Use `codex -c 'model_reasoning_effort="low"'` for a well-scoped,
-routine CLI task; desktop/IDE users select the model and reasoning in the client.
-This is a user-selected starting point, not a verified equivalence to Sol high.
-Subagent model/effort bindings remain unchanged pending task-level evidence.
-Simple implementation and tests stay with Primary; delegate independent work
-when context, quality, or elapsed-time gains justify coordination and token cost.
-See the [Astra setup review](docs/astra-setup-review.md) for the assumptions,
-official sources, retained trade-offs, and a lightweight comparison procedure.
+The primary default is GPT-5.6 Sol with `high` reasoning and the existing
+service tier. The explicitly requested reviewer/architect workload uses
+GPT-6 Astra with `xhigh`; reader, researcher, and executor keep their existing
+workload-specific bindings. Primary can also use Astra with the same global
+guidance; model selection does not require a second copy of the prompt.
 
 Project trust is machine-local, for example:
 
@@ -95,13 +92,14 @@ Native custom agents use Codex's `MultiAgentV2` interface under the custom
 `reader`, `researcher`, `executor`, and `reviewer`; other custom or unmanaged
 files under `~/.codex/agents`, as well as Codex built-in roles, are outside this
 repository's managed scope. Reader and executor bind to Luna, researcher binds
-to Terra, and reviewer binds to Sol.
+to Terra, and reviewer binds to Astra with `xhigh` reasoning.
 Runtime identity comes from each TOML `name`. The live `config.toml` symlink
 uses one portable `agent-roles` directory symlink instead of individual
 agent-file symlinks, which current Codex role loading rejects. `reviewer` is
-routed for reviews spanning multiple boundaries or benefiting from independent
-analysis; small document/config reviews stay with Primary. Role contracts live in `agents/*.toml` and are therefore stable when a
-model binding changes. Restart or reload the local Codex client (desktop/CLI/IDE;
+used only for explicitly requested independent code/design reviews and architect
+questions. It is not automatically added after implementation; ordinary review
+requests stay with Primary. Role contracts live in `agents/*.toml`.
+Restart or reload the local Codex client (desktop/CLI/IDE;
 for example, reload the VS Code window) after changing this
 configuration, then start a new session so
 `agents.spawn_agent` exposes `reader`, `researcher`, `executor`, and `reviewer`
@@ -114,7 +112,9 @@ bounded evidence gathering and implementation, and stops verification once the
 required checks pass. Skills supply task-specific defaults; they do not override
 an explicit request for direct code links, a complete answer, or already authorized
 work. Runtime tool metadata establishes exposed role/model bindings; TOML and a
-model's self-report alone do not prove which model actually ran.
+model's self-report alone do not prove which model actually ran. Missing metadata
+is reported as unconfirmed and does not cancel delegation. Bounded Primary fallback
+applies only when agent creation fails or the assigned role is unavailable.
 
 `agy-worker` is an explicit-only external-worker adapter for bounded `ask`,
 `research`, and independent code/plan/design `review`; it does not replace the
@@ -161,6 +161,87 @@ The managed `e2e-test` skill continues through already authorized phases and pau
 only for required user interaction or new authorization. Its former standalone
 installation is adopted through the installer's existing drift backup path; preview
 and use `--allow-drift` only for that known directory when migrating.
+
+## Prompt strategy and routing
+
+`codex-home/AGENTS.md` contains only shared scope, authorization, evidence, and
+change-safety rules, plus conditional pointers. Before its first substantive task,
+Primary reads `$CODEX_HOME/PRIMARY.md` (or `~/.codex/PRIMARY.md` when `CODEX_HOME`
+is unset). That file holds delegation, exploration budgets, verification, and
+user communication rules for both Sol and Astra. It is not reread every turn
+when its contents are already in context.
+
+Subagents follow their own role instructions and assigned scope; they do not load
+`PRIMARY.md` or other roles as operating instructions. A file explicitly assigned
+as a review target can still be read as task material. This is an instruction to
+read conditionally, not automatic file expansion or a tool-enforced access rule.
+The split reduces shared instructions received by subagents; it does not promise
+a smaller total Primary context. Start a new session to avoid retaining the old
+expanded global instructions, and keep `fork_turns="none"` for delegated work.
+
+The new file uses the installer's existing exact-file mapping, backup, and
+rollback behavior; no file is retired. Role instructions are loaded for the
+assigned task. The Astra reviewer keeps its evidence and
+read-only boundaries without a fixed layer-by-layer inspection itinerary.
+This follows the [official prompting guidance](https://learn.chatgpt.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)
+on removing excessive recipes while retaining clear decision and completion boundaries.
+
+There is no custom model-detection hook or duplicate model-specific global prompt.
+The [native profile mechanism](https://learn.chatgpt.com/docs/config-file/config-advanced)
+supports configuration layers selected at CLI startup; automatic prompt replacement
+when `/model` changes is not documented. Consider a small model-specific supplement
+only after repeated failures on comparable tasks show that the common contract is
+insufficient. `model_instructions_file` replaces Codex's built-in base instructions;
+it is not an additive AGENTS.md supplement ([configuration reference](https://learn.chatgpt.com/docs/config-file/config-sample)).
+
+Routing is decided before substantive tool work. Direct external exploration has
+a backstop of one search batch and one source retrieval per research question;
+additional exploration goes to researcher. Count source URLs inside batched calls,
+and do not reset the budget by changing tools, turns, or the wording of the question.
+Primary still reads required decision documents, stating that exception; checking
+agent evidence does not authorize fresh exploration or full-page refetches.
+Skill selection does not assign the work to Primary. These examples are semantic
+review cases, not proof of runtime compliance:
+
+| Request or change in scope | Expected route |
+| --- | --- |
+| Read one known config key or make a small local wording fix | Primary |
+| Compare model guides, versions, and official config references | Researcher for public sources; Primary for local config and decisions |
+| Explicitly delegate a single URL or user-provided document under user/project instructions | Researcher accepts the assigned investigation |
+| A simple lookup needs another search or source retrieval | Hand existing evidence and remaining questions to researcher before that call |
+| Extract evidence from multiple sessions or large logs | Reader extracts; Primary diagnoses |
+| Write/update tests or run test/build commands | Follow the project's assigned owner, scope, and timing |
+| Validate codex-config changes | Primary runs the required checks once after all changes are complete |
+| Implement a separate change with a clear delegation benefit | Executor; Primary checks the combined result |
+| “Review this” / explicitly request an independent review or architect | Primary / reviewer, respectively |
+
+Verification routing belongs in project instructions; there is no global duration
+threshold or trial run to choose an owner. Without project-specific rules, use the
+ordinary work-routing criteria. Delegation specifies minimal checks or no execution,
+and who owns final validation. When the project assigns final validation to Primary,
+subagents leave those checks for one run after all changes are complete. Report
+omitted checks and reasons; the assigned owner still completes required validation.
+
+Exploratory output defaults to a combined 4,000-token budget per tool batch,
+including nested calls. Narrow the source before limiting output. A second
+truncation in the same task routes local extraction to reader and public research
+to researcher; known bulk work is delegated immediately. Use completion events or
+wait tools instead of repeated short status checks; polling-only tools use at least
+30-second intervals unless user input or time-sensitive control requires otherwise.
+
+These are prompt-level budgets, not enforced counters. The existing context hook
+reports completed-turn diagnostics. Official [hook coverage](https://learn.chatgpt.com/docs/hooks)
+excludes hosted web tools from PreToolUse/PostToolUse, and the
+[tool output configuration](https://learn.chatgpt.com/docs/config-file/config-reference)
+does not establish that its history token limit applies to hosted web output.
+The global output setting and tool permissions are therefore unchanged.
+
+For the next three comparable research tasks, observe additional Primary search
+or source retrieval beyond the budget, Primary exploratory truncations, and
+repeated empty status polls; the target for each is zero. Record required-document
+and unavailable-role exceptions separately. These observations have not yet been
+collected. Binding and installation tests verify configuration and deployment;
+exact prompt-string assertions do not establish runtime routing compliance.
 
 ## Quick setup on another machine
 

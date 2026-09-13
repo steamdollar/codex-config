@@ -4,8 +4,15 @@
 
 - 이 파일은 이 저장소에서만 사용하는 작업 지침이다. 설치 artifact가 아니며 `manifest.tsv`에 추가하지 않는다.
 - versioned repository source가 canonical이다. live `$CODEX_HOME` 파일을 직접 편집하지 말고 repository source를 수정한 뒤 installer로 반영한다.
-- 전역 Primary 지침은 `codex-home/AGENTS.md`, custom role contract는 `codex-home/agents/*.toml`에 둔다.
+- 전역 공통 지침은 `codex-home/AGENTS.md`, Primary 전용 지침은 `codex-home/PRIMARY.md`, custom role contract는 `codex-home/agents/*.toml`에 둔다.
 - portable 설정은 `config.shared.toml`에서 수정한다. `config.toml`은 sync script가 machine-local `[projects]`와 `[hooks.state]`를 보존하며 생성한다.
+
+## 프롬프트 관리 원칙
+
+이 프로젝트에서 프롬프트와 지침을 관리할 때 항상 적용한다. 새 규칙은 아래 번호를 이어서 추가한다.
+
+1. **전역 지침은 필요한 파일로 분리한다.** 전역 `AGENTS.md`에는 항상 읽어야 하는 공통 내용만 유지한다. 역할·작업별 내용은 별도 파일로 분리하고, 누가 언제 해당 파일을 읽어야 하는지와 경로를 연결한다. 모든 참조 파일을 무조건 읽도록 하지 않는다.
+2. **공식 자료 확인은 위임한다.** `openai-docs` skill을 참조하고 [OpenAI Developers Blog](https://developers.openai.com/blog)에서 필요한 내용을 확인한다. 외부 문서 조사는 `researcher`, 로컬에 저장된 자료의 읽기·추출은 `reader`에 맡긴다. Primary가 직접 조사하지 않고 전달받은 근거를 바탕으로 판단한다.
 
 ## 변경과 설치
 
@@ -17,7 +24,7 @@
 
 ## 검증
 
-- 모든 변경에서 `bash tests/codex-config-test.sh`와 `git diff --check`를 통과시킨다.
+- 이 저장소의 테스트 작성·수정과 검증 실행은 Primary가 직접 수행한다. 모든 변경을 마친 뒤 `bash tests/codex-config-test.sh`와 `git diff --check`를 한 번씩 실행해 통과시킨다.
 - shell script를 바꾸면 `bash -n`을, TOML을 바꾸면 Python `tomllib` parse를 추가로 실행한다.
 - installer나 managed scope를 바꾸면 임시 `CODEX_HOME` integration 경로와 필요한 live verify까지 확인한다.
 
