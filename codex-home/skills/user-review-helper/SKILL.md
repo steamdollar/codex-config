@@ -1,6 +1,6 @@
 ---
 name: user-review-helper
-description: Explain a completed code change through its outcome, runtime flow, and relevant files. Use for "완료된 변경 설명", "코드 워크스루", or "이 변경이 어떻게 동작해?". Not for finding bugs, evaluating correctness, or summarizing PR feedback.
+description: Explain a completed code change through its outcome, runtime flow, and relevant files, and save an exact Markdown copy of the answer. Use for "완료된 변경 설명", "코드 워크스루", or "이 변경이 어떻게 동작해?". Not for finding bugs, evaluating correctness, or summarizing PR feedback.
 ---
 
 # Completed change walkthrough
@@ -25,6 +25,13 @@ Complete the requested explanation without comprehension gates. Pause between ch
 only when the user asks for an interactive, step-by-step session or when their answer
 is necessary to proceed. Adapt to corrections without turning each concept into a quiz.
 
-Export a document only when requested, using the chosen destination and relative links.
+Every invocation must also export the final in-tab answer as a Markdown file. Use the
+user's chosen destination; otherwise choose a descriptive `.md` path in the current
+workspace without overwriting an unrelated file. Compose the answer once, including a
+clickable link to the exported file, then write that exact Markdown content to the file
+and return it unchanged in the tab. Preserve every link from the in-tab answer verbatim
+in the exported copy; do not add file-only front matter, headings, or metadata. If the
+export fails, report the failure instead of claiming that the file was created.
+
 This skill explains completed work; it does not initiate a defect hunt, feedback archive,
 handoff, or code change. Follow a new explicit request if the user changes that scope.
