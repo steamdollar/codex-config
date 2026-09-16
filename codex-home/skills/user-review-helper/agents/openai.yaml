@@ -1,4 +1,4 @@
 interface:
   display_name: "Completed Change Walkthrough"
-  short_description: "Explain completed changes and save a Markdown copy"
-  default_prompt: "Use $user-review-helper to explain this completed change through one concrete runtime flow and the relevant code, then save an exact Markdown copy of the answer."
+  short_description: "Explain change actors for VS Code Markdown Preview"
+  default_prompt: "Use $user-review-helper to explain this completed change actor-first, then export the walkthrough as portable Markdown with a standalone SVG diagram when useful."
