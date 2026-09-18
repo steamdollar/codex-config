@@ -1,6 +1,6 @@
 ---
 name: user-review-helper
-description: Explain a completed code change through its outcome, runtime flow, and relevant files, and save an exact Markdown copy of the answer. Use for "완료된 변경 설명", "코드 워크스루", or "이 변경이 어떻게 동작해?". Not for finding bugs, evaluating correctness, or summarizing PR feedback.
+description: Explain a completed code change through its outcome, runtime flow, and relevant files, and save a Markdown copy with links adapted for the exported document. Use for "완료된 변경 설명", "코드 워크스루", or "이 변경이 어떻게 동작해?". Not for finding bugs, evaluating correctness, or summarizing PR feedback.
 ---
 
 # Completed change walkthrough
@@ -27,11 +27,19 @@ is necessary to proceed. Adapt to corrections without turning each concept into 
 
 Every invocation must also export the final in-tab answer as a Markdown file. Use the
 user's chosen destination; otherwise choose a descriptive `.md` path in the current
-workspace without overwriting an unrelated file. Compose the answer once, including a
-clickable link to the exported file, then write that exact Markdown content to the file
-and return it unchanged in the tab. Preserve every link from the in-tab answer verbatim
-in the exported copy; do not add file-only front matter, headings, or metadata. If the
-export fails, report the failure instead of claiming that the file was created.
+workspace without overwriting an unrelated file. Compose the prose once, including a
+clickable link to the exported file, and keep the in-tab and exported content identical
+except for local file-link targets. Adapt those targets to their rendering context:
+
+- In the tab, use Codex's clickable absolute-path form, `/absolute/path/File.kt:42`.
+- In the exported Markdown, use a path relative to the exported file and express a
+  source line with the widely supported fragment form, `path/to/File.kt#L42`; never
+  copy the tab-only `:42` suffix or a machine-specific absolute path into the document.
+- Keep ordinary web links unchanged. Before reporting success, resolve each exported
+  local target after removing its `#L...` fragment and confirm that the file exists.
+
+Do not add file-only front matter, headings, or metadata. If export or link validation
+fails, report the failure instead of claiming that the file was created.
 
 This skill explains completed work; it does not initiate a defect hunt, feedback archive,
 handoff, or code change. Follow a new explicit request if the user changes that scope.
